@@ -1,4 +1,4 @@
-from aps07.configs import (
+from aps06.configs import (
     ConfigName,
     GridSize,
     PHASE_TIMESTEPS,

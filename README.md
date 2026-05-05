@@ -1,4 +1,4 @@
-# APS07 — Generalização do Agente em Coverage Path Planning
+# APS06 — Generalização do Agente em Coverage Path Planning
 
 Este repositório é um fork técnico de [`fbarth/gym_custom_env`](https://github.com/fbarth/gym_custom_env) preparado para a Atividade Prática Supervisionada 07 da disciplina de Reinforcement Learning do Insper. O enunciado está em https://insper.github.io/rl/classes/23_custom_env_agent/.
 

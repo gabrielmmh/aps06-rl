@@ -1,4 +1,4 @@
-"""Hyperparameters and grid metadata for the four APS07 configurations.
+"""Hyperparameters and grid metadata for the four APS06 configurations.
 
 All knobs that vary between configs or grid sizes live here, so that
 train.py / inference.py / plot.py can stay declarative.

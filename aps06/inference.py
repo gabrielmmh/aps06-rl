@@ -12,12 +12,12 @@ import gymnasium as gym
 import numpy as np
 from stable_baselines3 import PPO
 
-from aps07.configs import PHASE_MAX_STEPS, PHASE_OBSTACLES, ConfigName, GridSize
+from aps06.configs import PHASE_MAX_STEPS, PHASE_OBSTACLES, ConfigName, GridSize
 from gymnasium_env.grid_world_cpp import GridWorldCPPEnv
 
 
 def _results_dir() -> Path:
-    return Path(os.environ.get("APS07_RESULTS_DIR", "results"))
+    return Path(os.environ.get("APS06_RESULTS_DIR", "results"))
 
 
 def _register_envs():

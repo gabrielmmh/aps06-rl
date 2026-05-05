@@ -19,7 +19,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
-from aps07.configs import (
+from aps06.configs import (
     PHASE_MAX_STEPS,
     PHASE_OBSTACLES,
     PHASE_TIMESTEPS,
@@ -46,7 +46,7 @@ class TrainResult:
 
 
 def _results_dir() -> Path:
-    return Path(os.environ.get("APS07_RESULTS_DIR", "results"))
+    return Path(os.environ.get("APS06_RESULTS_DIR", "results"))
 
 
 def _register_envs():
