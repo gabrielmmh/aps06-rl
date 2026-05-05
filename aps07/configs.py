@@ -58,7 +58,6 @@ PPO_HYPERPARAMS = {
     "device": "cpu",
 }
 
-# RecurrentPPO-specific hyperparameters
 RECURRENT_HYPERPARAMS = {
     "ent_coef": 0.05,
     "device": "cpu",
