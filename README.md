@@ -118,8 +118,8 @@ A curva de cada tamanho usa média e desvio padrão sobre as 3 seeds. O agente c
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
-| 5x5 | **99.0%** | 95.5% | 78.7% |
-| 10x10 | 98.4% | **98.2%** | 94.7% |
+| 5x5 | **99.1%** | 95.9% | 79.4% |
+| 10x10 | 98.7% | **98.2%** | 95.4% |
 | 20x20 | 98.4% | 97.8% | **94.1%** |
 
 A diagonal mostra a performance "nativa" (treinado e avaliado no mesmo tamanho). Os off-diagonais mostram a generalização.
@@ -128,9 +128,9 @@ A diagonal mostra a performance "nativa" (treinado e avaliado no mesmo tamanho).
 
 A degradação prevista pelo enunciado aparece nítida:
 
-* **5x5 → 10x10:** o agente treinado em 5x5 vai de 92.7% de full coverage para 14.0% quando avaliado em 10x10. A avg coverage cai bem menos (99.0% → 95.5%), o que indica que o agente continua explorando, mas não consegue fechar a cobertura nos cantos do mapa maior.
+* **5x5 → 10x10:** o agente treinado em 5x5 vai de 92.7% de full coverage para 14.0% quando avaliado em 10x10. A avg coverage cai bem menos (99.1% → 95.9%), o que indica que o agente continua explorando, mas não consegue fechar a cobertura nos cantos do mapa maior.
 
-* **5x5 → 20x20:** zero episódios completos. O agente cobre em média 78.7% das células, mas nunca termina. A janela 3x3 vira muito pequena em proporção e a normalização da posição perde sentido.
+* **5x5 → 20x20:** zero episódios completos. O agente cobre em média 79.4% das células, mas nunca termina. A janela 3x3 vira muito pequena em proporção e a normalização da posição perde sentido.
 
 * **Treinar direto no 20x20 não basta.** Mesmo o modelo treinado em 20x20 fecha a cobertura em apenas 0.3% dos episódios. Avg coverage é 94.1%, o que mostra que o PPO aprende uma política exploratória decente, mas a observabilidade parcial num grid grande impede o fechamento total. Isso é coerente com o enunciado, que menciona ~65% como referência para o baseline em 10x10.
 
