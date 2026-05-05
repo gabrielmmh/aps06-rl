@@ -49,9 +49,15 @@ def evaluate(
     config_name: ConfigName,
     seed: int,
     eval_size: GridSize,
+    train_size: Optional[GridSize] = None,
     n_episodes: int = 100,
 ) -> dict:
-    """Run `n_episodes` of the loaded model on a grid of `eval_size` and report metrics."""
+    """Run `n_episodes` of the loaded model on a grid of `eval_size` and report metrics.
+
+    `train_size` is included in the output CSV filename so we don't lose track of
+    which model produced the results when the same seed has multiple trained models
+    (which happens for the baseline config).
+    """
     _register_envs()
     env_id = _env_id_for_config(config_name)
     obstacles = PHASE_OBSTACLES[eval_size]
@@ -90,7 +96,11 @@ def evaluate(
 
     env.close()
 
-    csv_path = _results_dir() / "inference" / f"{config_name}_seed{seed}_eval_{eval_size}x{eval_size}.csv"
+    train_tag = f"_train{train_size}x{train_size}" if train_size is not None else ""
+    csv_path = (
+        _results_dir() / "inference"
+        / f"{config_name}_seed{seed}{train_tag}_eval_{eval_size}x{eval_size}.csv"
+    )
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="") as f:
         w = csv.writer(f)

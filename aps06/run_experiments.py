@@ -71,6 +71,7 @@ def run_inference_for(config_name: ConfigName, seed: int) -> None:
                 config_name=config_name,
                 seed=seed,
                 eval_size=eval_size,
+                train_size=train_size,
                 n_episodes=100,
             )
             print(
