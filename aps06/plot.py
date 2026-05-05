@@ -6,7 +6,6 @@ to results/plots/.
 
 import os
 from pathlib import Path
-from typing import Iterable
 
 import matplotlib
 
