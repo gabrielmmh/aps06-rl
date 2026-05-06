@@ -206,6 +206,17 @@ O 20x20 native continua difícil mesmo com enriched (9.0%). O salto de 0.3% para
 
 Avg coverage fica em 94-99% em todas as configurações e em todos os tamanhos. O agente encontra a maioria das células. O que diferencia as estratégias é a capacidade de **fechar** a cobertura, ou seja, encontrar as últimas 1-5 células antes do `max_steps`. Esse é um problema de eficiência, não de exploração.
 
+### Como interpretar o critério "cobertura próxima de 100%" do enunciado
+
+O enunciado pede que o agente atinja "cobertura próxima de 100%" em 5x5 e 10x10 (e em 20x20 para o bônus), mas usa duas leituras diferentes do que isso significa ao longo do texto. Ao descrever o baseline atual, ele cita números no formato `75/100, 78/100`, ou seja, a métrica **Full Coverage Rate**: a fração dos episódios em que o agente cobriu literalmente todas as células livres. No critério-alvo o termo é só "cobertura", sem qualificar.
+
+Em uma corrida de 100 episódios em 20x20 com a config `enriched`, o agente cobre em média 97.3% das células de cada episódio (97 de 100 células livres em média). Mas só 9 desses 100 episódios são fechados completamente. As duas medidas dizem coisas diferentes:
+
+- **Avg coverage** mede o quanto da tarefa o agente consegue concluir em média. Boa para diagnóstico (mostra que ele explora bem).
+- **Full coverage rate** mede com que frequência o agente fecha a tarefa por completo. Boa para comparação binária com baselines do enunciado.
+
+Como a métrica que o professor usa para descrever os resultados do baseline é **Full Coverage Rate**, esta é a leitura mais conservadora do critério. As tabelas do README reportam **as duas** lado a lado para evitar ambiguidade. O ranking das estratégias e a discussão da seção `Análise` se baseiam em Full Coverage Rate por consistência com o baseline citado pelo enunciado.
+
 ## Bônus 20x20
 
 Resultado em construção.
