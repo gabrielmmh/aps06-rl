@@ -35,6 +35,7 @@ def test_direction_one_hot_or_zero_when_no_unvisited():
     direction = obs["direction_to_nearest_unvisited"]
     assert np.all((direction == 0) | (direction == 1))
     assert direction.sum() <= 1
+    env.close()
 
 
 def test_distance_in_unit_interval():

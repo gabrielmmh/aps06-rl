@@ -9,8 +9,6 @@ The new features are computed only from the visible 5x5 window - they don't
 expose the full map, preserving partial observability.
 """
 
-from typing import Optional
-
 import gymnasium as gym
 import numpy as np
 

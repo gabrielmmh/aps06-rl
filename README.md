@@ -182,19 +182,19 @@ A célula mais surpreendente é o 5x5/10x10: 69.7% (vs 14.0% do baseline e do cu
 
 Comparando as três configurações nas células-chave (linha de comparação direta com o enunciado):
 
-| Cell | Baseline | Curriculum | Enriched |
+| Treinado em ↓ \ Avaliado em → | Baseline | Curriculum | Enriched |
 |---|---|---|---|
-| 5x5 trained, 10x10 eval | 14.0% | 14.0% | **69.7%** |
-| 10x10 trained, 10x10 eval | 64.3% | 71.3% | **77.3%** |
-| 20x20 trained, 10x10 eval | 47.7% | 64.7% | **73.0%** |
-| 20x20 trained, 20x20 eval | 0.3% | 0.3% | **9.0%** |
-| 5x5 trained, 5x5 eval | 92.7% | 92.7% | 91.3% |
+| 5x5 → 10x10 | 14.0% | 14.0% | **69.7%** |
+| 10x10 → 10x10 | 64.3% | 71.3% | **77.3%** |
+| 20x20 → 10x10 | 47.7% | 64.7% | **73.0%** |
+| 20x20 → 20x20 | 0.3% | 0.3% | **9.0%** |
+| 5x5 → 5x5 | 92.7% | 92.7% | 91.3% |
 
 Cada hipótese da seção "O Problema da Generalização" se mapeia num resultado:
 
 **Hipótese 1: features dependem da escala.** O curriculum endereça isso ao carregar pesos de 5x5 → 10x10 → 20x20. Ganho real mas modesto: +7.0pp no 10x10 native, +17.0pp no eval do 10x10 a partir do modelo final do 20x20. O 5x5 native não muda porque a primeira fase do curriculum equivale ao baseline. A escala de features parece ser parte do problema mas não a maior parte.
 
-**Hipótese 2: janela 3x3 fica pequena em grids grandes + falta de pista direcional.** É aqui que o enriched faz diferença. O 5x5/10x10 vai de 14% para 70% sem precisar de curriculum — é estrutura. A janela 5x5 mostra mais células, e `direction_to_nearest_unvisited` resolve o "para onde devo ir" que a janela 3x3 sozinha não responde. Esta era a hipótese certa para a generalização entre 5x5 e 10x10.
+**Hipótese 2: janela 3x3 fica pequena em grids grandes + falta de pista direcional.** É aqui que o enriched faz diferença. O 5x5/10x10 vai de 14% para 70% sem precisar de curriculum, ou seja, é ganho estrutural. A janela 5x5 mostra mais células, e `direction_to_nearest_unvisited` resolve o "para onde devo ir" que a janela 3x3 sozinha não responde. Esta era a hipótese certa para a generalização entre 5x5 e 10x10.
 
 **Hipótese 3: agente esquece células visitadas fora da janela.** Será testada com a config `curriculum_recurrent`, que substitui o MLP por um LSTM. O treino dela está em curso e a seção de resultados é atualizada conforme os experimentos terminam.
 
