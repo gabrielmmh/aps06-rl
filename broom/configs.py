@@ -12,6 +12,7 @@ ConfigName = Literal[
     "curriculum",
     "curriculum_enriched",
     "curriculum_recurrent",
+    "curriculum_recurrent_v2",
 ]
 GridSize = Literal[5, 10, 20]
 
@@ -41,9 +42,10 @@ PHASE_MAX_STEPS: dict[int, int] = {
 def get_phase_n_envs(config: ConfigName, size: GridSize) -> int:
     """Number of parallel envs for a (config, grid) combination.
 
-    RecurrentPPO is heavier in RAM due to LSTM hidden state, so we cap at 2
-    everywhere. Plain PPO uses 4 for 5x5 and 10x10, dropping to 2 for 20x20
-    to stay under 8GB RAM.
+    RecurrentPPO with CPU is heavier in RAM due to LSTM hidden state, so it
+    caps at 2 everywhere. The GPU variant (`curriculum_recurrent_v2`) frees
+    up RAM (LSTM lives on the GPU), so it uses 4/4/2 like the MLP configs.
+    Plain PPO uses 4 for 5x5 and 10x10, dropping to 2 for 20x20.
     """
     if config == "curriculum_recurrent":
         return 2
@@ -63,6 +65,23 @@ RECURRENT_HYPERPARAMS = {
     "device": "cpu",
     "policy_kwargs": {
         "lstm_hidden_size": 64,
+        "n_lstm_layers": 1,
+    },
+}
+
+# Second-attempt recurrent config (GPU + larger LSTM + longer rollouts).
+# Combines three changes versus RECURRENT_HYPERPARAMS so the LSTM has a real
+# chance to learn temporal dependencies on a 20x20 grid:
+#   - device GPU (compute can grow without slowing wall-clock)
+#   - lstm_hidden_size 256 (4x capacity to encode visited cells)
+#   - n_steps 512 (4x default rollout length so the LSTM sees longer
+#     sequences per PPO update)
+RECURRENT_V2_HYPERPARAMS = {
+    "ent_coef": 0.05,
+    "device": "cuda",
+    "n_steps": 512,
+    "policy_kwargs": {
+        "lstm_hidden_size": 256,
         "n_lstm_layers": 1,
     },
 }

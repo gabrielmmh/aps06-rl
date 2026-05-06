@@ -41,7 +41,13 @@ def test_n_envs_for_ppo_is_four_for_small_grids_two_for_large():
 
 
 def test_config_names_complete():
-    expected = {"baseline", "curriculum", "curriculum_enriched", "curriculum_recurrent"}
+    expected = {
+        "baseline",
+        "curriculum",
+        "curriculum_enriched",
+        "curriculum_recurrent",
+        "curriculum_recurrent_v2",
+    }
     assert set(ConfigName.__args__) == expected
 
 

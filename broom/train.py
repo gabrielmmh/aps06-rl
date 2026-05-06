@@ -25,6 +25,7 @@ from broom.configs import (
     PHASE_TIMESTEPS,
     PPO_HYPERPARAMS,
     RECURRENT_HYPERPARAMS,
+    RECURRENT_V2_HYPERPARAMS,
     ConfigName,
     GridSize,
     get_phase_n_envs,
@@ -110,7 +111,13 @@ class _EpisodeLogger(BaseCallback):
 
 
 def _is_recurrent(config_name: ConfigName) -> bool:
-    return config_name == "curriculum_recurrent"
+    return config_name in ("curriculum_recurrent", "curriculum_recurrent_v2")
+
+
+def _recurrent_hyperparams(config_name: ConfigName) -> dict:
+    if config_name == "curriculum_recurrent_v2":
+        return RECURRENT_V2_HYPERPARAMS
+    return RECURRENT_HYPERPARAMS
 
 
 def train_one(
@@ -145,10 +152,11 @@ def train_one(
 
     if _is_recurrent(config_name):
         from sb3_contrib import RecurrentPPO
+        hp = _recurrent_hyperparams(config_name)
         if init_from is not None:
-            model = RecurrentPPO.load(init_from, env=vec_env, **RECURRENT_HYPERPARAMS)
+            model = RecurrentPPO.load(init_from, env=vec_env, **hp)
         else:
-            model = RecurrentPPO("MultiInputLstmPolicy", vec_env, seed=seed, **RECURRENT_HYPERPARAMS)
+            model = RecurrentPPO("MultiInputLstmPolicy", vec_env, seed=seed, **hp)
     else:
         if init_from is not None:
             model = PPO.load(init_from, env=vec_env, **PPO_HYPERPARAMS)

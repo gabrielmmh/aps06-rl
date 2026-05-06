@@ -38,8 +38,11 @@ def _env_id_for_config(config_name: ConfigName) -> str:
 
 
 def _load_model(model_path: str, config_name: ConfigName, env: gym.Env):
-    if config_name == "curriculum_recurrent":
+    if config_name in ("curriculum_recurrent", "curriculum_recurrent_v2"):
         from sb3_contrib import RecurrentPPO
+        # Inference always on CPU: this avoids holding the GPU during the
+        # 100-episode evaluation loop, which doesn't benefit from GPU much
+        # (one env, no batching).
         return RecurrentPPO.load(model_path, env=env, device="cpu")
     return PPO.load(model_path, env=env, device="cpu")
 
@@ -79,7 +82,7 @@ def evaluate(
         steps = 0
 
         while not (terminated or truncated):
-            if config_name == "curriculum_recurrent":
+            if config_name in ("curriculum_recurrent", "curriculum_recurrent_v2"):
                 action, lstm_state = model.predict(obs, state=lstm_state, episode_start=episode_starts, deterministic=False)
                 episode_starts = np.zeros((1,), dtype=bool)
             else:
