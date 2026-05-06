@@ -116,6 +116,12 @@ A fase 5x5 é idêntica ao baseline (treinada do zero). Nas fases 10x10 e 20x20,
 
 Comportamento parecido com curriculum, mas com a observação 5x5 + features de direção/distância para a célula não-visitada mais próxima na janela.
 
+### Curriculum + RecurrentPPO (LSTM)
+
+![recurrent](results/plots/learning_curve_curriculum_recurrent.png)
+
+Curriculum também, mas com `RecurrentPPO` do `sb3-contrib` no lugar do PPO. A política troca o MLP por uma LSTM de 64 unidades. Treinamento mais lento por dois motivos: `n_envs=2` (vs 4 nas configs MLP) e overhead da LSTM por step. Cada seed roda em ~2.5h vs ~1h das configs MLP.
+
 ## Resultados de Inferência
 
 100 episódios por modelo, política estocástica. Cada modelo treinado num tamanho é avaliado nos três. Todos os números são médias sobre 3 seeds. A diagonal é a performance "nativa" (mesmo tamanho); os off-diagonais medem generalização.
@@ -167,6 +173,36 @@ A linha 5x5 é idêntica ao baseline porque a primeira fase do curriculum não t
 | 5x5 | **91.3%** | 69.7% | 0.7% |
 | 10x10 | 92.7% | **77.3%** | 4.7% |
 | 20x20 | 91.0% | 73.0% | **9.0%** |
+
+#### Avg coverage
+
+| Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| 5x5 | **98.6%** | 98.7% | 93.5% |
+| 10x10 | 98.9% | **98.6%** | 96.7% |
+| 20x20 | 98.8% | 98.8% | **97.3%** |
+
+A célula mais surpreendente é o 5x5/10x10: 69.7% (vs 14.0% do baseline e do curriculum). A janela 5x5 + a feature `direction_to_nearest_unvisited` fazem o modelo treinado só em 5x5 generalizar quase tão bem em 10x10 quanto em 5x5. Isso é resultado de **estrutura na observação**, não de mais treino.
+
+### Curriculum + RecurrentPPO
+
+#### Full coverage rate
+
+| Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| 5x5 | **83.0%** | 0.0% | 0.0% |
+| 10x10 | 64.7% | **1.3%** | 0.0% |
+| 20x20 | 85.0% | 19.3% | **0.0%** |
+
+#### Avg coverage
+
+| Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| 5x5 | **98.3%** | 85.4% | 56.0% |
+| 10x10 | 96.6% | **88.0%** | 69.7% |
+| 20x20 | 98.5% | 95.6% | **86.2%** |
+
+O recurrent regrediu em quase todas as células comparado ao baseline. A única exceção parcial é o 20x20→5x5 (85% vs 87% do baseline) e a avg coverage no 20x20 (86% vs 94% do baseline). O 10x10 native colapsou de 64% para 1%. Discussão mais adiante.
 
 #### Avg coverage
 
