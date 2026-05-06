@@ -1,4 +1,4 @@
-from aps06.configs import (
+from broom.configs import (
     ConfigName,
     GridSize,
     PHASE_TIMESTEPS,

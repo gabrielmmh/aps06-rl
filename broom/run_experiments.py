@@ -1,7 +1,7 @@
 """Driver: runs all (config, seed, size) combinations sequentially.
 
 Usage:
-    python -m aps06.run_experiments --configs baseline,curriculum,curriculum_enriched,curriculum_recurrent
+    python -m broom.run_experiments --configs baseline,curriculum,curriculum_enriched,curriculum_recurrent
 
 Resumable: skips combinations whose model already exists.
 """
@@ -10,13 +10,13 @@ import argparse
 import time
 from pathlib import Path
 
-from aps06.configs import (
+from broom.configs import (
     CURRICULUM_CHAIN,
     SEEDS,
     ConfigName,
 )
-from aps06.inference import evaluate
-from aps06.train import train_one
+from broom.inference import evaluate
+from broom.train import train_one
 
 
 CURRICULUM_CONFIGS: tuple[ConfigName, ...] = (
@@ -27,7 +27,7 @@ CURRICULUM_CONFIGS: tuple[ConfigName, ...] = (
 
 
 def _model_path(config_name: ConfigName, seed: int, size: int) -> Path:
-    from aps06.train import _results_dir  # type: ignore
+    from broom.train import _results_dir  # type: ignore
     return _results_dir() / "models" / f"{config_name}_seed{seed}_{size}x{size}.zip"
 
 

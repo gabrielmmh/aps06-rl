@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from aps06.inference import evaluate
-from aps06.train import train_one
+from broom.inference import evaluate
+from broom.train import train_one
 
 
 @pytest.fixture
 def trained_model(tmp_path, monkeypatch):
-    monkeypatch.setenv("APS06_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("APS07_RESULTS_DIR", str(tmp_path))
     return train_one(
         config_name="baseline",
         seed=0,
@@ -19,7 +19,7 @@ def trained_model(tmp_path, monkeypatch):
 
 
 def test_evaluate_writes_csv_and_returns_metrics(trained_model, tmp_path, monkeypatch):
-    monkeypatch.setenv("APS06_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("APS07_RESULTS_DIR", str(tmp_path))
     result = evaluate(
         model_path=trained_model.model_path,
         config_name="baseline",
@@ -37,7 +37,7 @@ def test_evaluate_writes_csv_and_returns_metrics(trained_model, tmp_path, monkey
 
 
 def test_evaluate_without_train_size_omits_train_tag(trained_model, tmp_path, monkeypatch):
-    monkeypatch.setenv("APS06_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("APS07_RESULTS_DIR", str(tmp_path))
     result = evaluate(
         model_path=trained_model.model_path,
         config_name="baseline",

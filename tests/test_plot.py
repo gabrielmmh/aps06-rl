@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from aps06.plot import plot_learning_curve
+from broom.plot import plot_learning_curve
 
 
 @pytest.fixture
 def fake_curves(tmp_path, monkeypatch):
     """Build 3 seeds × 1 grid of synthetic learning-curve CSVs."""
-    monkeypatch.setenv("APS06_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("APS07_RESULTS_DIR", str(tmp_path))
     curves_dir = tmp_path / "learning_curves"
     curves_dir.mkdir()
     for seed in range(3):

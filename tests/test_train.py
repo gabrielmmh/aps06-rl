@@ -3,12 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from aps06.train import train_one
+from broom.train import train_one
 
 
 @pytest.fixture
 def tmp_results(tmp_path, monkeypatch):
-    monkeypatch.setenv("APS06_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("APS07_RESULTS_DIR", str(tmp_path))
     return tmp_path
 
 

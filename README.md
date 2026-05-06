@@ -1,6 +1,6 @@
-# APS06 — Generalização do Agente em Coverage Path Planning
+# APS07 — Generalização do Agente em Coverage Path Planning
 
-Fork técnico de [`fbarth/gym_custom_env`](https://github.com/fbarth/gym_custom_env) feito para a Atividade Prática Supervisionada 06 da disciplina de Reinforcement Learning do Insper. Enunciado em https://insper.github.io/rl/classes/23_custom_env_agent/.
+Fork técnico de [`fbarth/gym_custom_env`](https://github.com/fbarth/gym_custom_env) feito para a Atividade Prática Supervisionada 07 da disciplina de Reinforcement Learning do Insper. Enunciado em https://insper.github.io/rl/classes/23_custom_env_agent/.
 
 A APS pede uma estratégia que faça um agente PPO treinado no problema de Coverage Path Planning (CPP) generalizar entre tamanhos de grid (5x5, 10x10 e, como bônus, 20x20) preservando a observabilidade parcial. O baseline do enunciado treina em 5x5 e degrada quando avaliado em grids maiores. Aqui investigamos quatro configurações para atacar essa degradação.
 
@@ -53,19 +53,19 @@ Cada configuração roda com 3 seeds (0, 1, 2) e é avaliada em todos os três t
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m aps06.run_experiments --configs baseline,curriculum,curriculum_enriched,curriculum_recurrent
+python -m broom.run_experiments --configs baseline,curriculum,curriculum_enriched,curriculum_recurrent
 ```
 
 O `run_experiments.py` é resumível: pula combinações cujo modelo já existe em `results/models/`. Para rodar uma config isolada:
 
 ```bash
-python -m aps06.run_experiments --configs baseline
+python -m broom.run_experiments --configs baseline
 ```
 
 Para treinar sem rodar inferência:
 
 ```bash
-python -m aps06.run_experiments --configs baseline --skip-inference
+python -m broom.run_experiments --configs baseline --skip-inference
 ```
 
 Os testes ficam em `tests/`:

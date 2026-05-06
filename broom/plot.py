@@ -1,4 +1,4 @@
-"""Plot generation for APS06 results.
+"""Plot generation for APS07 results.
 
 Reads CSVs from results/learning_curves/ and results/inference/, writes PNGs
 to results/plots/.
@@ -16,7 +16,7 @@ import pandas as pd
 
 
 def _results_dir() -> Path:
-    return Path(os.environ.get("APS06_RESULTS_DIR", "results"))
+    return Path(os.environ.get("APS07_RESULTS_DIR", "results"))
 
 
 def _plots_dir() -> Path:
