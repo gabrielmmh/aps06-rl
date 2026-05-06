@@ -132,49 +132,6 @@ def _scripted_summary() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def plot_comparison_native(metric: str = "full") -> str:
-    """Bar chart: every config (RL + scripted) on the native cell of each grid.
-
-    metric: 'full' for full coverage rate, 'avg' for avg coverage.
-    """
-    df = pd.concat([_rl_summary(), _scripted_summary()], ignore_index=True)
-    mean_col = f"{metric}_mean"
-    std_col = f"{metric}_std"
-
-    configs_order = list(RL_CONFIGS) + list(SCRIPTED_ALGOS)
-    n = len(configs_order)
-    width = 0.25
-    x = np.arange(n)
-
-    fig, ax = plt.subplots(figsize=(11, 5))
-    for i, size in enumerate(GRID_SIZES):
-        means = []
-        stds = []
-        for cfg in configs_order:
-            row = df[(df["config"] == cfg) & (df["eval_size"] == size)]
-            if row.empty:
-                means.append(0.0)
-                stds.append(0.0)
-            else:
-                means.append(float(row[mean_col].iloc[0]))
-                stds.append(float(row[std_col].iloc[0]))
-        ax.bar(x + (i - 1) * width, means, width, yerr=stds, capsize=3,
-               label=f"{size}x{size}")
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(configs_order, rotation=30, ha="right")
-    ax.set_ylim(0, 1)
-    ax.set_ylabel("avg coverage" if metric == "avg" else "full coverage rate")
-    ax.set_title(f"Comparação no grid nativo (treinou e avaliou no mesmo tamanho) — {metric}")
-    ax.legend(title="grid")
-    ax.grid(axis="y", alpha=0.3)
-    fig.tight_layout()
-    out = _plots_dir() / f"comparison_native_{metric}.png"
-    fig.savefig(out, dpi=120)
-    plt.close(fig)
-    return str(out)
-
-
 def plot_coverage_heatmap(metric: str = "full") -> str:
     """Heatmap: rows = config (RL natives + scripted), cols = eval grid."""
     df = pd.concat([_rl_summary(), _scripted_summary()], ignore_index=True)

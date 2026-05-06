@@ -283,7 +283,7 @@ python -m broom.run_scripted
 
 **Boustrophedon mostra a importância dos obstáculos.** Em 5x5 (3 obstáculos, 22 células livres), o zigzag basta: 94% de full coverage, igual ao frontier. Em 10x10 (12 obstáculos), o zigzag fica preso a cada poucas linhas e o fallback frontier não recupera bem (26%). Em 20x20 (48 obstáculos), o zigzag é virtualmente inútil (0% de fechamento, e a avg coverage cai para 54%). Indica que para grids com densidade alta de obstáculos, o frontier-based é necessário; o zigzag puro só serve em mapas vazios ou quase.
 
-**O que o gap entre RL e frontier diz.** O `curriculum_enriched` chega a 91% / 77% / 9% — o frontier chega a 94% / 86% / 77%. A diferença em 5x5 é pequena (3pp), em 10x10 é modesta (9pp), e em 20x20 é dramática (68pp). Isso sugere que:
+**O que o gap entre RL e frontier diz.** O `curriculum_enriched` chega a 91% / 77% / 9%, o frontier chega a 94% / 86% / 77%. A diferença em 5x5 é pequena (3pp), em 10x10 é modesta (9pp), e em 20x20 é dramática (68pp). Isso sugere que:
 
 1. Em mapas pequenos, o RL aprende uma política exploratória boa o suficiente, comparável a algoritmos clássicos.
 2. À medida que o grid cresce, o gap explode porque o RL precisa aprender implicitamente "construa um mapa, encontre a fronteira" enquanto o frontier-based já tem essa estrutura embutida.
@@ -307,17 +307,17 @@ E em avg coverage, a métrica que praticamente todas as estratégias bateram em 
 
 A leitura conjunta:
 
-* **Em 5x5** todas as estratégias chegam a ~91-94% de full coverage. O problema é trivial nesse tamanho.
+* **Em 5x5** quase todas as estratégias chegam a ~91-94% de full coverage. A exceção é o `curriculum_recurrent`, que cai para 83% mesmo no grid pequeno. Excluindo o recurrent, o problema é trivial nesse tamanho.
 * **Em 10x10** o frontier-based clássico lidera (86%), o `curriculum_enriched` aparece como melhor RL (77%), seguido por curriculum (71%) e baseline (64%). Boustrophedon despenca para 26% e o recurrent praticamente colapsa (1%).
 * **Em 20x20** só o frontier-based fecha episódios com regularidade (77%). O melhor RL nosso (`curriculum_enriched`) chega a 9%. Todas as outras estratégias ficam em 0% ou ~0.3%.
 
 ## Bônus 20x20
 
-O enunciado oferece 1 ponto extra se a estratégia chegar próxima de 100% também em 20x20. Em **avg coverage**, o `curriculum_enriched` atinge 97.3% em 20x20 — defensável como "próximo de 100%" se o avaliador aceitar essa métrica. Em **full coverage rate** (a métrica usada para descrever o baseline no enunciado), a melhor RL chega a 9.0%, longe de 100%.
+O enunciado oferece 1 ponto extra se a estratégia chegar próxima de 100% também em 20x20. Em **avg coverage**, o `curriculum_enriched` atinge 97.3% em 20x20, defensável como "próximo de 100%" se o avaliador aceitar essa métrica. Em **full coverage rate** (a métrica usada para descrever o baseline no enunciado), a melhor RL chega a 9.0%, longe de 100%.
 
 A discussão honesta:
 
-1. **O agente cobre quase tudo, mas não fecha.** Avg coverage 97.3% diz que em média 389 de 400 células são visitadas em cada episódio. Mas só 9% dos episódios visitam **todas** dentro de `max_steps=1000`. As últimas 5-15 células ficam sempre em algum canto do mapa, fora da janela 5x5, e o agente não consegue localizá-las eficientemente.
+1. **O agente cobre quase tudo, mas não fecha.** Avg coverage 97.3% diz que em média 342 de 352 células livres são visitadas em cada episódio (20x20 tem 400 células totais menos 48 obstáculos = 352 livres). Mas só 9% dos episódios visitam **todas** dentro de `max_steps=1000`. As últimas 5-15 células ficam sempre em algum canto do mapa, fora da janela 5x5, e o agente não consegue localizá-las eficientemente.
 
 2. **Frontier-based mostra que é resolvível com mapa interno.** O baseline clássico (frontier) chega a 77% de full coverage em 20x20, com avg coverage 99.9%. Quando o agente mantém um mapa explícito do que viu e usa BFS para a fronteira mais próxima, o problema é tratável. Nosso RL não aprende esse priori no orçamento de 2M timesteps por seed.
 
@@ -329,18 +329,18 @@ A discussão honesta:
 
 * **Hardware.** 8GB de RAM e CPU only. PPO com `n_envs=4` em 5x5/10x10 e `n_envs=2` em 20x20. RecurrentPPO com `n_envs=2` em todos. Cada seed em 20x20 leva 47-90 min dependendo da config; o orçamento total foi de ~13h para o ciclo completo das 4 configs RL × 3 seeds.
 * **3 seeds.** O mínimo defensável para média ± std. Seeds adicionais reduziriam a variância do gráfico de comparação mas não mudam a conclusão qualitativa.
-* **Timesteps fixos.** 300k/800k/2M por fase. Justificado pelo baseline atingir convergência razoável nos três tamanhos, mas o RecurrentPPO claramente precisaria mais — nosso budget ficou aquém.
+* **Timesteps fixos.** 300k/800k/2M por fase. Justificado pelo baseline atingir convergência razoável nos três tamanhos, mas o RecurrentPPO claramente precisaria mais; o nosso budget ficou aquém.
 
 **Trabalhos futuros que valem a pena tentar:**
 
 * **RecurrentPPO com mais compute.** A hipótese 3 (memória) não foi adequadamente testada porque o LSTM não convergiu no nosso budget. `n_steps` maior (512 ou 1024) e timesteps 3x maiores no 10x10/20x20 provavelmente fechariam o gap. Talvez também ajude treinar 10x10 e 20x20 do zero (sem warm-start do 5x5), já que o `RecurrentPPO.load(env=novo_env)` pode quebrar o regime do hidden state.
 * **Observação enriquecida adicional.** Adicionar a `direction_to_nearest_unknown` (em vez de só não-visitada) poderia ajudar em 20x20 onde a maior parte do mapa é desconhecida no início. Ou um "raio de visão" radial (ex.: distância até a parede em cada uma das 4 direções).
-* **Hibridização RL + scripted.** Usar o frontier como skill primária e o RL para decidir quando explorar vs quando explorar. Approach inspirado em Hierarchical RL.
+* **Hibridização RL + scripted.** Usar o frontier como skill primária e o RL para decidir quando explorar versus quando explotar. Caminho inspirado em Hierarchical RL.
 * **Reward shaping para 20x20.** O reward atual penaliza step (-0.1) sem premiar progresso parcial. Adicionar bônus por novo tile descoberto na janela (mesmo sem visitar) poderia acelerar a fase exploratória.
 * **Algoritmos mais recentes.** SAC ou DreamerV3 lidam melhor com tarefas de long-horizon e poderiam aprender o priori de mapeamento explicitamente. Custam mais em compute e fogem do escopo da disciplina.
 
 **O que aprendemos:**
 
-A hipótese mais forte da nossa investigação foi a **2** (janela pequena + falta de pista direcional). O `curriculum_enriched` melhora dramaticamente a generalização entre escalas (5x5→10x10 vai de 14% para 70%) sem precisar de curriculum learning explícito. A hipótese 1 (escala de features) é parte do problema mas modesta. A hipótese 3 (memória) ficou indeterminada — o LSTM colapsou, mas é mais provável que seja problema de orçamento de treinamento do que da hipótese estar errada.
+A hipótese mais forte da nossa investigação foi a **2** (janela pequena + falta de pista direcional). Olhando especificamente o salto entre o modelo treinado em 5x5 e avaliado em 10x10, o baseline puro fica em 14% e o enriched chega a 70%. Esse ganho vem do par "janela 5x5 + feature direcional", não da fase de curriculum (que aplica o mesmo warm-start em ambos). A hipótese 1 (escala de features) é parte do problema mas modesta. A hipótese 3 (memória) ficou indeterminada: o LSTM colapsou, mas é mais provável que seja problema de orçamento de treinamento do que da hipótese estar errada.
 
 A comparação com baselines clássicos mostra que CPP é resolvível com priori explícito, mas o RL nosso fica na metade do caminho em grids grandes. Para uma APS de RL, a contribuição é mostrar **qual estrutura na observação importa** (o resultado do enriched), e não competir com algoritmos de busca clássicos.
