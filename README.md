@@ -202,29 +202,19 @@ A célula mais surpreendente é o 5x5/10x10: 69.7% (vs 14.0% do baseline e do cu
 | 10x10 | 96.6% | **88.0%** | 69.7% |
 | 20x20 | 98.5% | 95.6% | **86.2%** |
 
-O recurrent regrediu em quase todas as células comparado ao baseline. A única exceção parcial é o 20x20→5x5 (85% vs 87% do baseline) e a avg coverage no 20x20 (86% vs 94% do baseline). O 10x10 native colapsou de 64% para 1%. Discussão mais adiante.
-
-#### Avg coverage
-
-| Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
-|---|---|---|---|
-| 5x5 | **98.6%** | 98.7% | 93.5% |
-| 10x10 | 98.9% | **98.6%** | 96.7% |
-| 20x20 | 98.8% | 98.8% | **97.3%** |
-
-A célula mais surpreendente é o 5x5/10x10: 69.7% (vs 14.0% do baseline e do curriculum). A janela 5x5 + a feature `direction_to_nearest_unvisited` fazem o modelo treinado só em 5x5 generalizar quase tão bem em 10x10 quanto em 5x5. Isso é resultado de **estrutura na observação**, não de mais treino.
+O recurrent regrediu em quase todas as células comparado ao baseline. A única exceção parcial é o 20x20→5x5 (85.0% vs 87.3% do baseline) e a avg coverage no 20x20 (86.2% vs 94.1% do baseline). O 10x10 native colapsou de 64.3% para 1.3%, e o 5x5/10x10 caiu de 14.0% para 0.0%. Discussão mais adiante.
 
 ## Análise
 
-Comparando as três configurações nas células-chave (linha de comparação direta com o enunciado):
+Comparando as quatro configurações nas células-chave (linha de comparação direta com o enunciado):
 
-| Treinado em ↓ \ Avaliado em → | Baseline | Curriculum | Enriched |
-|---|---|---|---|
-| 5x5 → 10x10 | 14.0% | 14.0% | **69.7%** |
-| 10x10 → 10x10 | 64.3% | 71.3% | **77.3%** |
-| 20x20 → 10x10 | 47.7% | 64.7% | **73.0%** |
-| 20x20 → 20x20 | 0.3% | 0.3% | **9.0%** |
-| 5x5 → 5x5 | 92.7% | 92.7% | 91.3% |
+| Treinado em ↓ \ Avaliado em → | Baseline | Curriculum | Enriched | Recurrent |
+|---|---|---|---|---|
+| 5x5 → 10x10 | 14.0% | 14.0% | **69.7%** | 0.0% |
+| 10x10 → 10x10 | 64.3% | 71.3% | **77.3%** | 1.3% |
+| 20x20 → 10x10 | 47.7% | 64.7% | **73.0%** | 19.3% |
+| 20x20 → 20x20 | 0.3% | 0.3% | **9.0%** | 0.0% |
+| 5x5 → 5x5 | 92.7% | 92.7% | 91.3% | 83.0% |
 
 Cada hipótese da seção "O Problema da Generalização" se mapeia num resultado:
 
@@ -232,7 +222,7 @@ Cada hipótese da seção "O Problema da Generalização" se mapeia num resultad
 
 **Hipótese 2: janela 3x3 fica pequena em grids grandes + falta de pista direcional.** É aqui que o enriched faz diferença. O 5x5/10x10 vai de 14% para 70% sem precisar de curriculum, ou seja, é ganho estrutural. A janela 5x5 mostra mais células, e `direction_to_nearest_unvisited` resolve o "para onde devo ir" que a janela 3x3 sozinha não responde. Esta era a hipótese certa para a generalização entre 5x5 e 10x10.
 
-**Hipótese 3: agente esquece células visitadas fora da janela.** Será testada com a config `curriculum_recurrent`, que substitui o MLP por um LSTM. O treino dela está em curso e a seção de resultados é atualizada conforme os experimentos terminam.
+**Hipótese 3: agente esquece células visitadas fora da janela.** Foi testada com a config `curriculum_recurrent`, que substitui o MLP por um LSTM de 64 unidades. O resultado foi negativo: o recurrent **regrediu** em quase todas as células, com o 10x10 native colapsando para 1.3% e o 5x5/10x10 zerando. A avg coverage continua alta (84-98%), então o agente ainda explora, mas não fecha. Provável causa: o LSTM precisa de mais timesteps por update do que os 300k/800k/2M alocados (n_steps default × n_envs=2 dá rollouts curtos demais para o LSTM aprender dependências temporais), e o `RecurrentPPO.load(path, env=novo_env)` entre as fases do curriculum pode quebrar o regime do hidden state. Memória pode ser parte do problema, mas o nosso orçamento de compute não foi suficiente para provar isso. Resultado vai pra "trabalhos futuros".
 
 ### O bônus 20x20
 
