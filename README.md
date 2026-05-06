@@ -243,6 +243,34 @@ Em uma corrida de 100 episódios em 20x20 com a config `enriched`, o agente cobr
 
 Como a métrica que o professor usa para descrever os resultados do baseline é **Full Coverage Rate**, esta é a leitura mais conservadora do critério. As tabelas do README reportam **as duas** lado a lado para evitar ambiguidade. O ranking das estratégias e a discussão da seção `Análise` se baseiam em Full Coverage Rate por consistência com o baseline citado pelo enunciado.
 
+## Comparação com baselines clássicos
+
+Para contextualizar os ganhos do RL, comparamos as estratégias contra dois baselines não-learning. Ambos rodam no mesmo `GridWorldCPPEnv` com as mesmas 3 seeds, mantendo a observabilidade parcial: o mapa interno só é construído a partir das janelas 3x3 que o agente realmente observou (nunca a partir de oráculo).
+
+### Algoritmos
+
+**Frontier-based exploration (BFS).** O agente mantém uma matriz `size × size` que registra cada célula como desconhecida, livre-visitada, livre-vista-mas-não-visitada, ou parede. A cada step, atualiza essa matriz com a janela 3x3 atual. Em seguida, BFS sobre as células livres conhecidas até a fronteira (célula vista mas não visitada) mais próxima, e dá um passo nessa direção. Quando não há fronteira conhecida, pega a ação que maximiza a quantidade de células desconhecidas que entrarão na próxima janela.
+
+**Boustrophedon (zigzag) com fallback frontier.** Varredura sistemática linha a linha. Anda pra direita até bater em parede, desce uma linha, anda pra esquerda, desce, e assim por diante. Quando direção horizontal e "descer" estão ambas bloqueadas, recorre ao mecanismo do frontier (escolhe a fronteira mais próxima e segue até ela antes de retomar o zigzag).
+
+O código fica em `broom/baselines/`. Para rodar:
+
+```bash
+python -m broom.run_scripted
+```
+
+### Resultados (full coverage rate, média 3 seeds)
+
+| Algoritmo | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| Frontier-based BFS | _treino em curso_ | _treino em curso_ | _treino em curso_ |
+| Boustrophedon | _treino em curso_ | _treino em curso_ | _treino em curso_ |
+| **Melhor RL nosso (`curriculum_enriched`)** | 91.3% | 77.3% | 9.0% |
+
+### Discussão
+
+(Esta seção é finalizada com base nos números reais após o run.) A leitura academicamente honesta é: o RL aprende sem o priori de "construa um mapa, faça BFS para a fronteira". Quando essa estrutura é codificada à mão como nos baselines acima, o problema é essencialmente resolvido. A diferença entre os scripted e a melhor estratégia RL nossa mede o custo de **não** codificar a estrutura à mão, ou equivalentemente, o quanto o RL ainda pode crescer dentro do mesmo orçamento de timesteps.
+
 ## Bônus 20x20
 
 Resultado em construção.
