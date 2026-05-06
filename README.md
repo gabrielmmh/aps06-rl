@@ -259,17 +259,37 @@ O código fica em `broom/baselines/`. Para rodar:
 python -m broom.run_scripted
 ```
 
-### Resultados (full coverage rate, média 3 seeds)
+### Resultados (média de 3 seeds, 100 episódios cada)
+
+#### Full coverage rate
 
 | Algoritmo | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
-| Frontier-based BFS | _treino em curso_ | _treino em curso_ | _treino em curso_ |
-| Boustrophedon | _treino em curso_ | _treino em curso_ | _treino em curso_ |
-| **Melhor RL nosso (`curriculum_enriched`)** | 91.3% | 77.3% | 9.0% |
+| Frontier-based BFS | **94.0%** | **86.0%** | **77.0%** |
+| Boustrophedon | 94.0% | 26.3% | 0.0% |
+| Melhor RL nosso (`curriculum_enriched`) | 91.3% | 77.3% | 9.0% |
+
+#### Avg coverage
+
+| Algoritmo | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| Frontier-based BFS | 99.1% | 99.4% | **99.9%** |
+| Boustrophedon | 99.1% | 92.1% | 54.1% |
+| Melhor RL nosso (`curriculum_enriched`) | 98.6% | 98.6% | 97.3% |
 
 ### Discussão
 
-(Esta seção é finalizada com base nos números reais após o run.) A leitura academicamente honesta é: o RL aprende sem o priori de "construa um mapa, faça BFS para a fronteira". Quando essa estrutura é codificada à mão como nos baselines acima, o problema é essencialmente resolvido. A diferença entre os scripted e a melhor estratégia RL nossa mede o custo de **não** codificar a estrutura à mão, ou equivalentemente, o quanto o RL ainda pode crescer dentro do mesmo orçamento de timesteps.
+**Frontier-based domina em todos os grids.** No 20x20, onde o melhor RL nosso fecha 9% dos episódios, o frontier fecha 77%. A avg coverage do frontier em 20x20 é 99.9%, ou seja, ele praticamente cobre o mapa todo, só não fecha 23% dos episódios porque esbarra em `max_steps=1000` antes de visitar a última célula. É um upper bound prático: com mapa interno explícito + BFS, o problema é quase trivial.
+
+**Boustrophedon mostra a importância dos obstáculos.** Em 5x5 (3 obstáculos, 22 células livres), o zigzag basta: 94% de full coverage, igual ao frontier. Em 10x10 (12 obstáculos), o zigzag fica preso a cada poucas linhas e o fallback frontier não recupera bem (26%). Em 20x20 (48 obstáculos), o zigzag é virtualmente inútil (0% de fechamento, e a avg coverage cai para 54%). Indica que para grids com densidade alta de obstáculos, o frontier-based é necessário; o zigzag puro só serve em mapas vazios ou quase.
+
+**O que o gap entre RL e frontier diz.** O `curriculum_enriched` chega a 91% / 77% / 9% — o frontier chega a 94% / 86% / 77%. A diferença em 5x5 é pequena (3pp), em 10x10 é modesta (9pp), e em 20x20 é dramática (68pp). Isso sugere que:
+
+1. Em mapas pequenos, o RL aprende uma política exploratória boa o suficiente, comparável a algoritmos clássicos.
+2. À medida que o grid cresce, o gap explode porque o RL precisa aprender implicitamente "construa um mapa, encontre a fronteira" enquanto o frontier-based já tem essa estrutura embutida.
+3. O custo do learning é proporcional ao priori que o agente precisa descobrir. Nosso enriched fornece pista direcional (`direction_to_nearest_unvisited`) mas só dentro da janela 5x5; o frontier tem mapa global construído.
+
+**O frontier não é solução RL.** O baseline clássico não generaliza para outros problemas (cada problema precisa de heurística codificada à mão), enquanto o RL em princípio escala para qualquer task com signal de reward. A APS pede uma estratégia RL e isso é o que entregamos. O frontier serve aqui como ponto de comparação útil para entender quanto da performance ficou na mesa.
 
 ## Bônus 20x20
 
