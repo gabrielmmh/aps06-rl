@@ -96,19 +96,33 @@ Hiperparâmetros principais (mantidos consistentes para isolar a estratégia):
 
 ## Curvas de Aprendizado
 
+Todas as curvas usam média e desvio padrão sobre 3 seeds, suavizadas com janela móvel de 20 episódios.
+
 ### Baseline (PPO sem curriculum)
 
 ![baseline](results/plots/learning_curve_baseline.png)
 
-A curva de cada tamanho usa média e desvio padrão sobre as 3 seeds. O agente converge nos três tamanhos: 5x5 sai de −60 e estabiliza próximo de 0; 10x10 sai de −140 e chega a −10; 20x20 sai de −200 e atinge ~0. As três outras configurações entram nesta seção conforme os épicos seguintes ficam prontos.
+O agente converge nos três tamanhos. 5x5 sai de −60 e estabiliza próximo de 0; 10x10 sai de −140 e chega a −10; 20x20 sai de −200 e atinge ~0.
+
+### Curriculum (PPO com warm start entre fases)
+
+![curriculum](results/plots/learning_curve_curriculum.png)
+
+A fase 5x5 é idêntica ao baseline (treinada do zero). Nas fases 10x10 e 20x20, o eixo X reinicia em zero porque cada fase é um treino separado com `model.learn(reset_num_timesteps=False)`. Os pesos vêm carregados da fase anterior, então a curva começa em reward mais alto que o baseline equivalente.
+
+### Curriculum + observação enriquecida
+
+![enriched](results/plots/learning_curve_curriculum_enriched.png)
+
+Comportamento parecido com curriculum, mas com a observação 5x5 + features de direção/distância para a célula não-visitada mais próxima na janela.
 
 ## Resultados de Inferência
 
+100 episódios por modelo, política estocástica. Cada modelo treinado num tamanho é avaliado nos três. Todos os números são médias sobre 3 seeds. A diagonal é a performance "nativa" (mesmo tamanho); os off-diagonais medem generalização.
+
 ### Baseline
 
-100 episódios por modelo, política estocástica. Cada modelo treinado num tamanho é avaliado nos três. Todos os números são médias sobre 3 seeds.
-
-#### Full coverage rate (% de episódios que cobriram tudo)
+#### Full coverage rate
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -116,7 +130,7 @@ A curva de cada tamanho usa média e desvio padrão sobre as 3 seeds. O agente c
 | 10x10 | 89.0% | **64.3%** | 0.3% |
 | 20x20 | 87.3% | 47.7% | **0.3%** |
 
-#### Avg coverage (média de cobertura ao final do episódio)
+#### Avg coverage
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -124,21 +138,73 @@ A curva de cada tamanho usa média e desvio padrão sobre as 3 seeds. O agente c
 | 10x10 | 98.7% | **98.2%** | 95.4% |
 | 20x20 | 98.4% | 97.8% | **94.1%** |
 
-A diagonal mostra a performance "nativa" (treinado e avaliado no mesmo tamanho). Os off-diagonais mostram a generalização.
+### Curriculum
+
+#### Full coverage rate
+
+| Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| 5x5 | **92.7%** | 14.0% | 0.0% |
+| 10x10 | 90.7% | **71.3%** | 2.0% |
+| 20x20 | 89.0% | 64.7% | **0.3%** |
+
+#### Avg coverage
+
+| Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| 5x5 | **99.1%** | 95.9% | 79.4% |
+| 10x10 | 98.9% | **98.9%** | 96.6% |
+| 20x20 | 98.7% | 98.3% | **96.6%** |
+
+A linha 5x5 é idêntica ao baseline porque a primeira fase do curriculum não tem warm-start (o modelo é criado do zero). O ganho aparece a partir do 10x10 e é mais visível em quem o modelo final do 20x20 consegue fazer no 10x10 (64.7% vs 47.7% do baseline).
+
+### Curriculum + observação enriquecida
+
+#### Full coverage rate
+
+| Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| 5x5 | **91.3%** | 69.7% | 0.7% |
+| 10x10 | 92.7% | **77.3%** | 4.7% |
+| 20x20 | 91.0% | 73.0% | **9.0%** |
+
+#### Avg coverage
+
+| Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
+|---|---|---|---|
+| 5x5 | **98.6%** | 98.7% | 93.5% |
+| 10x10 | 98.9% | **98.6%** | 96.7% |
+| 20x20 | 98.8% | 98.8% | **97.3%** |
+
+A célula mais surpreendente é o 5x5/10x10: 69.7% (vs 14.0% do baseline e do curriculum). A janela 5x5 + a feature `direction_to_nearest_unvisited` fazem o modelo treinado só em 5x5 generalizar quase tão bem em 10x10 quanto em 5x5. Isso é resultado de **estrutura na observação**, não de mais treino.
 
 ## Análise
 
-A degradação prevista pelo enunciado aparece nítida:
+Comparando as três configurações nas células-chave (linha de comparação direta com o enunciado):
 
-* **5x5 → 10x10:** o agente treinado em 5x5 vai de 92.7% de full coverage para 14.0% quando avaliado em 10x10. A avg coverage cai bem menos (99.1% → 95.9%), o que indica que o agente continua explorando, mas não consegue fechar a cobertura nos cantos do mapa maior.
+| Cell | Baseline | Curriculum | Enriched |
+|---|---|---|---|
+| 5x5 trained, 10x10 eval | 14.0% | 14.0% | **69.7%** |
+| 10x10 trained, 10x10 eval | 64.3% | 71.3% | **77.3%** |
+| 20x20 trained, 10x10 eval | 47.7% | 64.7% | **73.0%** |
+| 20x20 trained, 20x20 eval | 0.3% | 0.3% | **9.0%** |
+| 5x5 trained, 5x5 eval | 92.7% | 92.7% | 91.3% |
 
-* **5x5 → 20x20:** zero episódios completos. O agente cobre em média 79.4% das células, mas nunca termina. A janela 3x3 vira muito pequena em proporção e a normalização da posição perde sentido.
+Cada hipótese da seção "O Problema da Generalização" se mapeia num resultado:
 
-* **Treinar direto no 20x20 não basta.** Mesmo o modelo treinado em 20x20 fecha a cobertura em apenas 0.3% dos episódios. Avg coverage é 94.1%, o que mostra que o PPO aprende uma política exploratória decente, mas a observabilidade parcial num grid grande impede o fechamento total. Isso é coerente com o enunciado, que menciona ~65% como referência para o baseline em 10x10.
+**Hipótese 1: features dependem da escala.** O curriculum endereça isso ao carregar pesos de 5x5 → 10x10 → 20x20. Ganho real mas modesto: +7.0pp no 10x10 native, +17.0pp no eval do 10x10 a partir do modelo final do 20x20. O 5x5 native não muda porque a primeira fase do curriculum equivale ao baseline. A escala de features parece ser parte do problema mas não a maior parte.
 
-* **Treinar em 10x10 ou 20x20 não recupera 5x5.** O agente treinado em 20x20 cai para 87.3% no 5x5 (vs 92.7% nativo). Sugere overfitting às características do grid maior.
+**Hipótese 2: janela 3x3 fica pequena em grids grandes + falta de pista direcional.** É aqui que o enriched faz diferença. O 5x5/10x10 vai de 14% para 70% sem precisar de curriculum — é estrutura. A janela 5x5 mostra mais células, e `direction_to_nearest_unvisited` resolve o "para onde devo ir" que a janela 3x3 sozinha não responde. Esta era a hipótese certa para a generalização entre 5x5 e 10x10.
 
-A baseline confirma a hipótese global da APS: PPO com `MultiInputPolicy` numa janela 3x3 e posição normalizada não generaliza entre escalas. As três configurações seguintes atacam esses pontos.
+**Hipótese 3: agente esquece células visitadas fora da janela.** Será testada com a config `curriculum_recurrent`, que substitui o MLP por um LSTM. O treino dela está em curso e a seção de resultados é atualizada conforme os experimentos terminam.
+
+### O bônus 20x20
+
+O 20x20 native continua difícil mesmo com enriched (9.0%). O salto de 0.3% para 9.0% mostra que a estrutura ajuda, mas não é suficiente para fechar a cobertura nos 1000 passos disponíveis. Discussão completa na seção [Bônus 20x20](#bônus-20x20).
+
+### Trade-off de avg coverage vs full coverage rate
+
+Avg coverage fica em 94-99% em todas as configurações e em todos os tamanhos. O agente encontra a maioria das células. O que diferencia as estratégias é a capacidade de **fechar** a cobertura, ou seja, encontrar as últimas 1-5 células antes do `max_steps`. Esse é um problema de eficiência, não de exploração.
 
 ## Bônus 20x20
 
