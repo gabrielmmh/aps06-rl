@@ -69,7 +69,13 @@ def plot_learning_curve(config_name: str) -> str:
 
 # Aggregated plotting (Epic 5)
 
-RL_CONFIGS = ("baseline", "curriculum", "curriculum_enriched", "curriculum_recurrent")
+RL_CONFIGS = (
+    "baseline",
+    "curriculum",
+    "curriculum_enriched",
+    "curriculum_recurrent",
+    "curriculum_recurrent_v2",
+)
 SCRIPTED_ALGOS = ("frontier", "boustrophedon")
 
 
