@@ -2,7 +2,7 @@
 
 Fork técnico de [`fbarth/gym_custom_env`](https://github.com/fbarth/gym_custom_env) feito para a Atividade Prática Supervisionada 07 da disciplina de Reinforcement Learning do Insper. Enunciado em https://insper.github.io/rl/classes/23_custom_env_agent/.
 
-A APS pede uma estratégia que faça um agente PPO treinado no problema de Coverage Path Planning (CPP) generalizar entre tamanhos de grid (5x5, 10x10 e, como bônus, 20x20) preservando a observabilidade parcial. O baseline do enunciado treina em 5x5 e degrada quando avaliado em grids maiores. Aqui investigamos quatro configurações para atacar essa degradação.
+A APS pede uma estratégia que faça um agente PPO treinado no problema de Coverage Path Planning (CPP) generalizar entre tamanhos de grid (5x5, 10x10 e, como bônus, 20x20) preservando a observabilidade parcial. O baseline do enunciado treina em 5x5 e degrada quando avaliado em grids maiores. Aqui investigamos cinco configurações de RL (mais dois baselines clássicos não-learning para contexto) para atacar essa degradação.
 
 O repositório foi reduzido aos arquivos relacionados ao Coverage Path Planning. Os exemplos do upstream para outros ambientes (grid world básico, 3D, com obstáculos, com renderização) foram removidos para deixar a leitura focada na APS. O histórico do upstream segue acessível pelo `git log` e via remote `upstream`.
 
@@ -59,6 +59,18 @@ pip install -r requirements.txt
 python -m broom.run_experiments --configs baseline,curriculum,curriculum_enriched,curriculum_recurrent
 ```
 
+A quinta config (`curriculum_recurrent_v2`) requer GPU CUDA. Roda separadamente:
+
+```bash
+python -m broom.run_experiments --configs curriculum_recurrent_v2
+```
+
+Os baselines clássicos (frontier-based, boustrophedon) não treinam, só rodam inferência:
+
+```bash
+python -m broom.run_scripted
+```
+
 O `run_experiments.py` é resumível: pula combinações cujo modelo já existe em `results/models/`. Para rodar uma config isolada:
 
 ```bash
@@ -83,18 +95,18 @@ Hiperparâmetros principais (mantidos consistentes para isolar a estratégia):
 
 | Parâmetro | Valor |
 |---|---|
-| Algoritmo (configs 1–3) | PPO + `MultiInputPolicy` |
-| Algoritmo (configs 4 e 5) | RecurrentPPO + `MultiInputLstmPolicy` |
+| Algoritmo (`baseline`, `curriculum`, `curriculum_enriched`) | PPO + `MultiInputPolicy` |
+| Algoritmo (`curriculum_recurrent`, `curriculum_recurrent_v2`) | RecurrentPPO + `MultiInputLstmPolicy` |
 | `ent_coef` | 0.05 (igual upstream) |
-| `device` | cpu (configs 1–4), cuda (config 5) |
+| `device` | cpu (4 primeiras configs), cuda (`curriculum_recurrent_v2`) |
 | `n_envs` (PPO, 5x5/10x10) | 4 |
 | `n_envs` (PPO, 20x20) | 2 |
-| `n_envs` (RecurrentPPO config 4) | 2 |
-| `n_envs` (RecurrentPPO config 5) | 4 (5x5/10x10), 2 (20x20) |
-| `n_steps` | 128 default (configs 1–4), 512 (config 5) |
+| `n_envs` (`curriculum_recurrent`) | 2 em todos os grids |
+| `n_envs` (`curriculum_recurrent_v2`) | 4 em 5x5/10x10, 2 em 20x20 |
+| `n_steps` | 128 default (4 primeiras configs), 512 (`curriculum_recurrent_v2`) |
 | Timesteps por fase | 5x5: 300k, 10x10: 800k, 20x20: 2M |
-| LSTM (config 4) | 64 unidades, 1 camada |
-| LSTM (config 5) | 256 unidades, 1 camada |
+| LSTM (`curriculum_recurrent`) | 64 unidades, 1 camada |
+| LSTM (`curriculum_recurrent_v2`) | 256 unidades, 1 camada |
 | Seeds | 0, 1, 2 |
 | Episódios de inferência | 100 (política estocástica, `deterministic=False`) |
 
@@ -243,7 +255,7 @@ O recurrent regrediu em quase todas as células comparado ao baseline. O 10x10 n
 | 10x10 | 98.5% | **93.2%** | 80.1% |
 | 20x20 | 98.2% | 95.4% | **84.8%** |
 
-A v2 melhora em quase todas as células fora do 20x20 native: 10x10 native sobe de 1.3% para 10.0% (~8x), 10x10→5x5 vai de 64.7% para 85.3%, 20x20→10x10 vai de 19.3% para 30.7%. O 5x5 native fica praticamente igual (83.0% → 83.7%). O 20x20 native segue 0% mesmo com a capacidade aumentada. Mostra que a primeira tentativa estava de fato subdimensionada (LSTM 64 + rollouts de 128 steps insuficientes), mas que mesmo a v2 não encontra a estratégia de fechar mapas grandes — segue bem abaixo do enriched (77.3% no 10x10 native) e do frontier scripted (86.0%).
+A v2 melhora em quase todas as células fora do 20x20 native: 10x10 native sobe de 1.3% para 10.0% (~8x), 10x10→5x5 vai de 64.7% para 85.3%, 20x20→10x10 vai de 19.3% para 30.7%. O 5x5 native fica praticamente igual (83.0% → 83.7%). O 20x20 native segue 0% mesmo com a capacidade aumentada. Mostra que a primeira tentativa estava de fato subdimensionada (LSTM 64 + rollouts de 128 steps insuficientes), mas que mesmo a v2 não encontra a estratégia de fechar mapas grandes, ficando bem abaixo do enriched (77.3% no 10x10 native) e do frontier scripted (86.0%).
 
 A variância no seed 2 do v2 (10x10 native 3.0% versus 13-14% nos seeds 0 e 1) sinaliza que a LSTM ainda treina de forma instável: alguma das 3 corridas não converge para a mesma política.
 
@@ -370,20 +382,20 @@ A discussão honesta:
 
 **Limitações práticas:**
 
-* **Hardware.** 8GB de RAM e CPU only. PPO com `n_envs=4` em 5x5/10x10 e `n_envs=2` em 20x20. RecurrentPPO com `n_envs=2` em todos. Cada seed em 20x20 leva 47-90 min dependendo da config; o orçamento total foi de ~13h para o ciclo completo das 4 configs RL × 3 seeds.
-* **3 seeds.** O mínimo defensável para média ± std. Seeds adicionais reduziriam a variância do gráfico de comparação mas não mudam a conclusão qualitativa.
-* **Timesteps fixos.** 300k/800k/2M por fase. Justificado pelo baseline atingir convergência razoável nos três tamanhos, mas o RecurrentPPO claramente precisaria mais; o nosso budget ficou aquém.
+* **Hardware.** 8GB de RAM, CPU 8 cores e uma GPU RTX 3060 6GB. As 4 primeiras configs (`baseline`, `curriculum`, `curriculum_enriched`, `curriculum_recurrent`) rodaram em CPU only. A `curriculum_recurrent_v2` rodou na GPU para acomodar a LSTM 256 sem estourar memória. PPO usou `n_envs=4` em 5x5/10x10 e `n_envs=2` em 20x20. `curriculum_recurrent` usou `n_envs=2` em todos. `curriculum_recurrent_v2` voltou para `n_envs=4` em 5x5/10x10 (aproveitando que a LSTM saiu da CPU). Cada seed em 20x20 leva 47-180 min dependendo da config. Orçamento total: ~13h para as 4 primeiras configs RL × 3 seeds, mais ~16h para a `curriculum_recurrent_v2` × 3 seeds, totalizando ~29h de compute.
+* **3 seeds.** O mínimo defensável para média ± std. Seeds adicionais reduziriam a variância do gráfico de comparação mas não mudam a conclusão qualitativa. A `curriculum_recurrent_v2` em particular mostrou alta variância entre seeds (std de 5pp em 10x10 native), sugerindo que mais seeds (5-10) seriam particularmente úteis para essa config.
+* **Timesteps fixos.** 300k/800k/2M por fase. Justificado pelo baseline atingir convergência razoável nos três tamanhos. A primeira `curriculum_recurrent` precisaria mais (e os 8.7pp de melhora do v2 sobre v1 são em parte uma confirmação disso), mas mesmo a v2 não fecha o 20x20 nativo, indicando que mais timesteps sozinhos provavelmente não resolveriam.
 
 **Trabalhos futuros que valem a pena tentar:**
 
-* **RecurrentPPO com mais compute.** A hipótese 3 (memória) não foi adequadamente testada porque o LSTM não convergiu no nosso budget. `n_steps` maior (512 ou 1024) e timesteps 3x maiores no 10x10/20x20 provavelmente fechariam o gap. Talvez também ajude treinar 10x10 e 20x20 do zero (sem warm-start do 5x5), já que o `RecurrentPPO.load(env=novo_env)` pode quebrar o regime do hidden state.
-* **Observação enriquecida adicional.** Adicionar a `direction_to_nearest_unknown` (em vez de só não-visitada) poderia ajudar em 20x20 onde a maior parte do mapa é desconhecida no início. Ou um "raio de visão" radial (ex.: distância até a parede em cada uma das 4 direções).
+* **RecurrentPPO sem curriculum.** O `RecurrentPPO.load(env=novo_env)` entre fases do curriculum pode quebrar o regime do hidden state da LSTM. Treinar 10x10 e 20x20 do zero (sem warm-start) talvez evite essa instabilidade.
+* **Observação enriquecida adicional.** Adicionar `direction_to_nearest_unknown` (em vez de só não-visitada) poderia ajudar em 20x20 onde a maior parte do mapa é desconhecida no início. Ou um "raio de visão" radial (distância até a parede em cada uma das 4 direções).
 * **Hibridização RL + scripted.** Usar o frontier como skill primária e o RL para decidir quando explorar versus quando explotar. Caminho inspirado em Hierarchical RL.
 * **Reward shaping para 20x20.** O reward atual penaliza step (-0.1) sem premiar progresso parcial. Adicionar bônus por novo tile descoberto na janela (mesmo sem visitar) poderia acelerar a fase exploratória.
 * **Algoritmos mais recentes.** SAC ou DreamerV3 lidam melhor com tarefas de long-horizon e poderiam aprender o priori de mapeamento explicitamente. Custam mais em compute e fogem do escopo da disciplina.
 
 **O que aprendemos:**
 
-A hipótese mais forte da nossa investigação foi a **2** (janela pequena + falta de pista direcional). Olhando especificamente o salto entre o modelo treinado em 5x5 e avaliado em 10x10, o baseline puro fica em 14% e o enriched chega a 70%. Esse ganho vem do par "janela 5x5 + feature direcional", não da fase de curriculum (que aplica o mesmo warm-start em ambos). A hipótese 1 (escala de features) é parte do problema mas modesta. A hipótese 3 (memória) ficou indeterminada: o LSTM colapsou, mas é mais provável que seja problema de orçamento de treinamento do que da hipótese estar errada.
+A hipótese mais forte da nossa investigação foi a **2** (janela pequena + falta de pista direcional). Olhando especificamente o salto entre o modelo treinado em 5x5 e avaliado em 10x10, o baseline puro fica em 14% e o enriched chega a 70%. Esse ganho vem do par "janela 5x5 + feature direcional", não da fase de curriculum (que aplica o mesmo warm-start em ambos). A hipótese 1 (escala de features) é parte do problema mas modesta. A hipótese 3 (memória) foi testada em duas tentativas: a primeira (LSTM 64 + n_steps 128 + CPU) colapsou; a segunda (`curriculum_recurrent_v2`, com LSTM 256 + n_steps 512 + GPU) confirmou que parte do colapso era subdimensionamento, mas mesmo com a capacidade ampliada o agente não compete com o enriched. Memória ajuda mas não é o gargalo principal nesse problema.
 
 A comparação com baselines clássicos mostra que CPP é resolvível com priori explícito, mas o RL nosso fica na metade do caminho em grids grandes. Para uma APS de RL, a contribuição é mostrar **qual estrutura na observação importa** (o resultado do enriched), e não competir com algoritmos de busca clássicos.

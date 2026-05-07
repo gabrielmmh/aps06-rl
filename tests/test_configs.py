@@ -76,3 +76,22 @@ def test_recurrent_hyperparams_use_cpu_and_lstm():
     pkw = RECURRENT_HYPERPARAMS["policy_kwargs"]
     assert 32 <= pkw["lstm_hidden_size"] <= 256
     assert pkw["n_lstm_layers"] >= 1
+
+
+def test_recurrent_v2_hyperparams_use_cuda_larger_lstm_and_longer_rollouts():
+    from broom.configs import RECURRENT_V2_HYPERPARAMS
+
+    assert RECURRENT_V2_HYPERPARAMS["device"] == "cuda"
+    assert RECURRENT_V2_HYPERPARAMS["n_steps"] == 512
+    pkw = RECURRENT_V2_HYPERPARAMS["policy_kwargs"]
+    assert pkw["lstm_hidden_size"] == 256
+    assert pkw["n_lstm_layers"] == 1
+
+
+def test_v2_uses_full_n_envs_unlike_v1():
+    # v1 caps at 2 envs everywhere because LSTM hidden state lives in CPU RAM.
+    # v2 frees that constraint by moving the LSTM to GPU, so it returns to
+    # the MLP pattern: 4 envs in 5x5/10x10, 2 in 20x20.
+    assert get_phase_n_envs("curriculum_recurrent_v2", 5) == 4
+    assert get_phase_n_envs("curriculum_recurrent_v2", 10) == 4
+    assert get_phase_n_envs("curriculum_recurrent_v2", 20) == 2

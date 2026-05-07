@@ -76,6 +76,8 @@ RECURRENT_HYPERPARAMS = {
 #   - lstm_hidden_size 256 (4x capacity to encode visited cells)
 #   - n_steps 512 (4x default rollout length so the LSTM sees longer
 #     sequences per PPO update)
+# Note: `n_steps` is a top-level RecurrentPPO constructor argument (not a
+# `policy_kwargs` entry); SB3 accepts it via **kwargs at construction time.
 RECURRENT_V2_HYPERPARAMS = {
     "ent_coef": 0.05,
     "device": "cuda",
