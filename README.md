@@ -584,6 +584,8 @@ Multi-seed pra std dev (full coverage rate sobre solúveis, 100 episódios por s
 
 A estabilidade entre seeds confirma que o resultado não é artefato de uma seed sortuda. Em raw (sobre todos os 100 mapas), os números ficam em 75-78% (mean 76.7% ± 1.2% para p=0.10) — limitado pelo teto de 77% dos 23% de mapas insolúveis em 20x20.
 
+**Caveat metodológico**: a inferência híbrida usa `deterministic=False` na chamada do `model.predict` (mesmo padrão do resto do README, pra consistência). Isso significa que, nas ações onde a moeda do mixture aponta pro PPO, o agente sampleia da distribuição de softmax do policy em vez de pegar argmax. Mantém a comparabilidade com as outras configs (todas usam estocástica), e o teste com `deterministic=True` em uma seção anterior mostrou que a versão determinística regride ~30-70pp em todas as configs — então a versão estocástica é a que reflete a competência do agente.
+
 ### A discussão honesta sobre o bônus
 
 1. **Pura RL nossa não consegue fechar 20x20 native.** Confirmado em 4 configs (`enriched`, `mapcnn_bc_pbrs`, `maskable_v3`, `maskable_bc_kl`). Drift do PPO em horizonte longo (1000 passos) destrói a policy de fechamento.

@@ -17,7 +17,6 @@ so weight transfer is a state_dict load.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Iterable
 
@@ -27,7 +26,6 @@ import torch
 from stable_baselines3 import PPO
 
 from broom.baselines.frontier import FrontierAgent
-from broom.baselines.shared import InternalMap
 from gymnasium_env.grid_world_cpp_mapobs import GridWorldCPPMapObsEnv
 
 
