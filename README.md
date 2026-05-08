@@ -2,7 +2,7 @@
 
 Fork técnico de [`fbarth/gym_custom_env`](https://github.com/fbarth/gym_custom_env) feito para a Atividade Prática Supervisionada 07 da disciplina de Reinforcement Learning do Insper. Enunciado em https://insper.github.io/rl/classes/23_custom_env_agent/.
 
-A APS pede uma estratégia que faça um agente PPO treinado no problema de Coverage Path Planning (CPP) generalizar entre tamanhos de grid (5x5, 10x10 e, como bônus, 20x20) preservando a observabilidade parcial. O baseline do enunciado treina em 5x5 e degrada quando avaliado em grids maiores. Investiguei oito configurações de RL (mais dois baselines clássicos não-learning para contexto) para atacar essa degradação. Antes da análise dos resultados, vale a leitura da seção [A métrica corrigida](#a-métrica-corrigida-mapas-insolúveis), que documenta a descoberta de que ~6/14/23% dos mapas em 5x5/10x10/20x20 são fisicamente impossíveis de cobrir 100% por construção, e isso muda a leitura honesta dos números.
+A APS pede uma estratégia que faça um agente PPO treinado no problema de Coverage Path Planning (CPP) generalizar entre tamanhos de grid (5x5, 10x10 e, como bônus, 20x20) preservando a observabilidade parcial. O baseline do enunciado treina em 5x5 e degrada quando avaliado em grids maiores. Investiguei oito configurações de RL (mais dois baselines clássicos não-learning para contexto) para atacar essa degradação. Antes da análise dos resultados, vale a leitura da seção [A métrica corrigida](#a-métrica-corrigida-mapas-insolucionáveis), que documenta a descoberta de que ~6/14/23% dos mapas em 5x5/10x10/20x20 são fisicamente impossíveis de cobrir 100% por construção, e isso muda a leitura honesta dos números.
 
 O repositório foi reduzido aos arquivos relacionados ao Coverage Path Planning. Os exemplos do upstream para outros ambientes (grid world básico, 3D, com obstáculos, com renderização) foram removidos para deixar a leitura focada na APS. O histórico do upstream segue acessível pelo `git log` e via remote `upstream`.
 
@@ -49,13 +49,13 @@ Comparei oito configurações; todas usam PPO ou variantes, e as diferenças est
 
 As cinco primeiras configs rodaram com 3 seeds (0, 1, 2). As três últimas (`mapcnn_bc_pbrs`, `maskable_v3`, `maskable_bc_kl`) rodaram com apenas o seed 0, porque cada uma leva ~3.5h por seed e o sinal diagnóstico do seed 0 já era forte o suficiente para decidir o próximo passo dentro do orçamento de tempo da APS.
 
-## A métrica corrigida: mapas insolúveis
+## A métrica corrigida: mapas insolucionáveis
 
 Olhando os resultados antigos sobre `curriculum_enriched` em 10x10 (77.3% full coverage rate) ou frontier scripted em 20x20 (77% também) surge uma pergunta: por que o frontier — que constrói mapa interno explícito e usa BFS para a fronteira mais próxima — só fecha 77%?
 
-A resposta é estrutural: nem todos os mapas são fisicamente solúveis. A geração aleatória de obstáculos pode produzir configurações onde uma ou mais células livres ficam ilhadas, cercadas de obstáculos sem conexão à célula de spawn do agente. Nesses casos full coverage é matematicamente impossível, independente da estratégia. Fazendo BFS de reachability a partir da posição inicial em cada um dos 300 mapas de avaliação por tamanho (3 seeds × 100 episódios), encontrei 18/300 (6%) insolúveis em 5x5, 42/300 (14%) em 10x10, e 69/300 (23%) em 20x20. O teto teórico de full coverage rate é, portanto, 94% em 5x5, 86% em 10x10 e 77% em 20x20. O frontier scripted bate exatamente esses tetos, ou seja, resolve 100% dos mapas solúveis em todos os tamanhos.
+A resposta é estrutural: nem todos os mapas são fisicamente solucionáveis. A geração aleatória de obstáculos pode produzir configurações onde uma ou mais células livres ficam ilhadas, cercadas de obstáculos sem conexão à célula de spawn do agente. Nesses casos full coverage é matematicamente impossível, independente da estratégia. Fazendo BFS de reachability a partir da posição inicial em cada um dos 300 mapas de avaliação por tamanho (3 seeds × 100 episódios), encontrei 18/300 (6%) insolucionáveis em 5x5, 42/300 (14%) em 10x10, e 69/300 (23%) em 20x20. O teto teórico de full coverage rate é, portanto, 94% em 5x5, 86% em 10x10 e 77% em 20x20. O frontier scripted bate exatamente esses tetos, ou seja, resolve 100% dos mapas solucionáveis em todos os tamanhos.
 
-Isso muda a leitura dos resultados de RL. O `curriculum_enriched` em 10x10 com 77.3% raw vira **90.0% sobre solúveis**, e o `maskable_bc_kl` em 86% raw vira **94.5% sobre solúveis** (ainda abaixo do frontier mas chegando perto). Reporto as duas métricas lado a lado em todas as tabelas: a bruta (sobre os 100 mapas) é a que o enunciado cita ao comparar com o baseline `75/100`, e a filtrada mede a competência efetiva num conjunto onde 100% é fisicamente possível. O cache de solubilidade fica em `results/solvability_cache.json`, gerado offline por `python -m broom.build_solvability_cache`, e o módulo `broom/solvability.py` expõe a função BFS. A observabilidade parcial é preservada porque o cache não é exposto ao agente em momento algum, só ao avaliador.
+Isso muda a leitura dos resultados de RL. O `curriculum_enriched` em 10x10 com 77.3% raw vira **90.0% sobre solucionáveis**, e o `maskable_bc_kl` em 86% raw vira **94.5% sobre solucionáveis** (ainda abaixo do frontier mas chegando perto). Reporto as duas métricas lado a lado em todas as tabelas: a bruta (sobre os 100 mapas) é a que o enunciado cita ao comparar com o baseline `75/100`, e a filtrada mede a competência efetiva num conjunto onde 100% é fisicamente possível. O cache de solucionabilidade fica em `results/solvability_cache.json`, gerado offline por `python -m broom.build_solvability_cache`, e o módulo `broom/solvability.py` expõe a função BFS. A observabilidade parcial é preservada porque o cache não é exposto ao agente em momento algum, só ao avaliador.
 
 ## Como Executar
 
@@ -178,13 +178,13 @@ A segunda (`curriculum_recurrent_v2`, LSTM 256, n_steps 512, GPU) ataca diretame
 
 ![maskable_v3](results/plots/learning_curve_maskable_v3.png)
 
-`maskable_v3` adiciona action masking + reward redesign ao curriculum_enriched. A calibração do terminal +60 vem de Theile et al. (arXiv 2309.03157): para que o terminal bonus domine a soma das step penalties ao longo do `max_steps` sob γ = 0.999, é preciso B ≥ (0.1·500 + 5)/0.95 ≈ 60. Em conjunto, o action masking elimina o ruído de aprendizado de ações inválidas (Huang & Ontañón, arXiv 2006.14171). Essa config destrava o teto histórico de 77% no 10x10, subindo para 84% raw / 92.3% sobre solúveis.
+`maskable_v3` adiciona action masking + reward redesign ao curriculum_enriched. A calibração do terminal +60 vem de Theile et al. (arXiv 2309.03157): para que o terminal bonus domine a soma das step penalties ao longo do `max_steps` sob γ = 0.999, é preciso B ≥ (0.1·500 + 5)/0.95 ≈ 60. Em conjunto, o action masking elimina o ruído de aprendizado de ações inválidas (Huang & Ontañón, arXiv 2006.14171). Essa config destrava o teto histórico de 77% no 10x10, subindo para 84% raw / 92.3% sobre solucionáveis.
 
 ### Maskable PPO + BC + KL anchor
 
 ![maskable_bc_kl](results/plots/learning_curve_maskable_bc_kl.png)
 
-`maskable_bc_kl` soma o KL anchor pra BC frozen na loss do `maskable_v3`. λ_bc decai de 1.0 a 0.05 sobre os 3.1M timesteps cumulativos do curriculum. O 10x10 native chega a 86% raw / 94.5% sobre solúveis — ainda abaixo do frontier (100%) mas é o melhor RL puro nesse tamanho que consegui produzir. A curva começa em reward bem positivo (BC) e mantém estável durante o treino sem desviar muito do BC inicial (visível no log do `kl_to_bc`).
+`maskable_bc_kl` soma o KL anchor pra BC frozen na loss do `maskable_v3`. λ_bc decai de 1.0 a 0.05 sobre os 3.1M timesteps cumulativos do curriculum. O 10x10 native chega a 86% raw / 94.5% sobre solucionáveis — ainda abaixo do frontier (100%) mas é o melhor RL puro nesse tamanho que consegui produzir. A curva começa em reward bem positivo (BC) e mantém estável durante o treino sem desviar muito do BC inicial (visível no log do `kl_to_bc`).
 
 ## Resultados de Inferência
 
@@ -192,7 +192,7 @@ A segunda (`curriculum_recurrent_v2`, LSTM 256, n_steps 512, GPU) ataca diretame
 
 ### Baseline
 
-Full coverage rate raw / sobre solúveis:
+Full coverage rate raw / sobre solucionáveis:
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -210,7 +210,7 @@ Avg coverage:
 
 ### Curriculum
 
-Full coverage rate raw / sobre solúveis:
+Full coverage rate raw / sobre solucionáveis:
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -230,7 +230,7 @@ A linha 5x5 é idêntica ao baseline porque a primeira fase do curriculum não t
 
 ### Curriculum + observação enriquecida
 
-Full coverage rate raw / sobre solúveis:
+Full coverage rate raw / sobre solucionáveis:
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -250,7 +250,7 @@ A célula mais surpreendente é o 5x5 → 10x10: 69.7% (vs 14.0% do baseline e d
 
 ### Curriculum + RecurrentPPO (CPU, LSTM 64, n_steps 128)
 
-Full coverage rate raw / sobre solúveis:
+Full coverage rate raw / sobre solucionáveis:
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -270,7 +270,7 @@ O recurrent regrediu em quase todas as células comparado ao baseline. O 10x10 n
 
 ### Curriculum + RecurrentPPO (GPU, LSTM 256, n_steps 512)
 
-Full coverage rate raw / sobre solúveis:
+Full coverage rate raw / sobre solucionáveis:
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -290,7 +290,7 @@ A v2 melhora em quase todas as células fora do 20x20 native: 10x10 native sobe 
 
 ### MapCNN + BC + PBRS (1 seed)
 
-Full coverage rate raw / sobre solúveis:
+Full coverage rate raw / sobre solucionáveis:
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -310,7 +310,7 @@ Esta foi a primeira tentativa de empilhar memória global, warm-start do Frontie
 
 ### Maskable PPO + reward redesign (1 seed)
 
-Full coverage rate raw / sobre solúveis:
+Full coverage rate raw / sobre solucionáveis:
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -326,11 +326,11 @@ Avg coverage:
 | 10x10 | 98.9% | **99.2%** | 97.9% |
 | 20x20 | 98.9% | 98.4% | **92.1%** |
 
-O `maskable_v3` é a config que destrava o teto histórico de 77% no 10x10 native: 84% raw / 92.3% sobre solúveis. A combinação action masking + reward redesign ataca diretamente o gargalo do fechamento das últimas células. A célula `10x10 → 20x20` também surpreende: 30% raw / 38.5% sobre solúveis (vs 4.7% / 6.1% do enriched), mostrando que o modelo treinado só em 10x10 com reward redesign já transfere bem pro 20x20. O 20x20 native, no entanto, cai pra 0% — mesmo padrão do `mapcnn_bc_pbrs`. A fase 20x20 do PPO continua causando drift mesmo sem BC pra anular. A avg coverage de 92.1% mostra que o agente ainda explora bem em 20x20, só não fecha.
+O `maskable_v3` é a config que destrava o teto histórico de 77% no 10x10 native: 84% raw / 92.3% sobre solucionáveis. A combinação action masking + reward redesign ataca diretamente o gargalo do fechamento das últimas células. A célula `10x10 → 20x20` também surpreende: 30% raw / 38.5% sobre solucionáveis (vs 4.7% / 6.1% do enriched), mostrando que o modelo treinado só em 10x10 com reward redesign já transfere bem pro 20x20. O 20x20 native, no entanto, cai pra 0% — mesmo padrão do `mapcnn_bc_pbrs`. A fase 20x20 do PPO continua causando drift mesmo sem BC pra anular. A avg coverage de 92.1% mostra que o agente ainda explora bem em 20x20, só não fecha.
 
 ### Maskable PPO + BC + KL anchor (1 seed)
 
-Full coverage rate raw / sobre solúveis:
+Full coverage rate raw / sobre solucionáveis:
 
 | Treinado em ↓ \ Avaliado em → | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -346,7 +346,7 @@ Avg coverage:
 | 10x10 | 98.5% | **99.8%** | 98.9% |
 | 20x20 | 98.9% | 98.3% | **94.4%** |
 
-O `maskable_bc_kl` adiciona o KL anchor (`λ · KL(π ‖ π_BC_frozen)`) ao `maskable_v3`. O 10x10 native sobe para 86% raw / 94.5% sobre solúveis, o melhor RL puro do estudo nesse tamanho — ainda abaixo do frontier (100%) mas chegando próximo. A célula `10x10 → 20x20` também melhora ligeiramente: 32% / 41.0%. O 20x20 native fica em 1% raw, confirmando que nem o KL anchor pra BC consegue prevenir o drift do PPO na fase 20x20. A boa notícia é o `20x20 → 10x10 = 64%` raw / 70.3% sobre solúveis (vs 54% / 59.3% do `maskable_v3`), indicando que o KL anchor preservou mais competência da fase 10x10 mesmo após a fase 20x20.
+O `maskable_bc_kl` adiciona o KL anchor (`λ · KL(π ‖ π_BC_frozen)`) ao `maskable_v3`. O 10x10 native sobe para 86% raw / 94.5% sobre solucionáveis, o melhor RL puro do estudo nesse tamanho — ainda abaixo do frontier (100%) mas chegando próximo. A célula `10x10 → 20x20` também melhora ligeiramente: 32% / 41.0%. O 20x20 native fica em 1% raw, confirmando que nem o KL anchor pra BC consegue prevenir o drift do PPO na fase 20x20. A boa notícia é o `20x20 → 10x10 = 64%` raw / 70.3% sobre solucionáveis (vs 54% / 59.3% do `maskable_v3`), indicando que o KL anchor preservou mais competência da fase 10x10 mesmo após a fase 20x20.
 
 ## Análise
 
@@ -361,7 +361,7 @@ A tabela abaixo consolida as oito configurações nas células-chave (full cover
 | 20x20 → 10x10 | 47.7% | 64.7% | 73.0% | 19.3% | 30.7% | 0.0% | 54.0% | 64.0% |
 | 20x20 → 20x20 | 0.3% | 0.3% | **9.0%** | 0.0% | 0.0% | 0.0% | 0.0% | 1.0% |
 
-Com a métrica filtrada sobre mapas solúveis, os números finais nas natives ficam:
+Com a métrica filtrada sobre mapas solucionáveis, os números finais nas natives ficam:
 
 | Config | 5x5 native | 10x10 native | 20x20 native |
 |---|---|---|---|
@@ -383,19 +383,19 @@ Cada hipótese da seção "O Problema da Generalização" se mapeia num resultad
 
 **Hipótese 3: agente esquece células visitadas fora da janela.** Foi testada em duas tentativas com `RecurrentPPO`. A primeira (LSTM 64, n_steps 128, CPU) colapsou: 10x10 native foi a 1.3%, 5x5 → 10x10 zerou. A segunda (`curriculum_recurrent_v2`, com LSTM 256, n_steps 512, GPU) confirmou que parte da regressão era subdimensionamento: 10x10 native sobe para 10.0% e 20x20 → 10x10 sobe para 30.7%. Mas a v2 ainda fica muito abaixo do enriched (77.3% em 10x10 native) e do frontier scripted (86.0%). Conclusão: a memória recorrente, dentro do orçamento de compute disponível, ajuda mas não compete com a observação enriquecida estruturalmente. A variância entre seeds da v2 (std 5pp em 10x10 native) sugere que a LSTM continua sensível à inicialização.
 
-**Hipótese 4: credit assignment do fechamento das últimas células.** Esta hipótese surgiu da observação de que avg coverage atinge 94-99% em quase todas as configs em todos os tamanhos, mas full coverage rate trava em 77% no 10x10 e 9% no 20x20. Ou seja, o agente explora bem mas não fecha — as últimas 3-15 células ficam fora da janela e o agente passa por perto sem visitar. Três tentativas atacaram esse problema. A primeira foi `mapcnn_bc_pbrs`, que empilhou memória global (mapa egocêntrico CNN), warm-start do FrontierAgent (BC) e PBRS dense reward. O resultado em 10x10 foi um empate com enriched em 77% raw / 84.6% sobre solúveis — o bundle não destravou o teto. Em 20x20 o PPO drift erradicou o BC. A segunda foi `maskable_v3`, que atacou o reward landscape diretamente: terminal +60 em vez de +10 (calibrado pra dominar o step penalty cumulativo via Theile et al. 2023), truncation 0 em vez de −5, step penalty 0 quando coverage ≥ 0.80, action masking, network maior, gamma=0.999. O 10x10 sobe pra 84% raw / 92.3% sobre solúveis — primeira config a romper o teto histórico de 77%. A terceira foi `maskable_bc_kl`, que somou KL anchor pra BC frozen na loss, levando o 10x10 native a 86% raw / 94.5% sobre solúveis. O 20x20 native, em todas as três, segue em ~0% por drift do PPO em horizonte longo.
+**Hipótese 4: credit assignment do fechamento das últimas células.** Esta hipótese surgiu da observação de que avg coverage atinge 94-99% em quase todas as configs em todos os tamanhos, mas full coverage rate trava em 77% no 10x10 e 9% no 20x20. Ou seja, o agente explora bem mas não fecha — as últimas 3-15 células ficam fora da janela e o agente passa por perto sem visitar. Três tentativas atacaram esse problema. A primeira foi `mapcnn_bc_pbrs`, que empilhou memória global (mapa egocêntrico CNN), warm-start do FrontierAgent (BC) e PBRS dense reward. O resultado em 10x10 foi um empate com enriched em 77% raw / 84.6% sobre solucionáveis — o bundle não destravou o teto. Em 20x20 o PPO drift erradicou o BC. A segunda foi `maskable_v3`, que atacou o reward landscape diretamente: terminal +60 em vez de +10 (calibrado pra dominar o step penalty cumulativo via Theile et al. 2023), truncation 0 em vez de −5, step penalty 0 quando coverage ≥ 0.80, action masking, network maior, gamma=0.999. O 10x10 sobe pra 84% raw / 92.3% sobre solucionáveis — primeira config a romper o teto histórico de 77%. A terceira foi `maskable_bc_kl`, que somou KL anchor pra BC frozen na loss, levando o 10x10 native a 86% raw / 94.5% sobre solucionáveis. O 20x20 native, em todas as três, segue em ~0% por drift do PPO em horizonte longo.
 
 A leitura dessa quarta hipótese: o reward landscape era de fato o gargalo no 10x10 (resolvido pelo redesign + masking). Mas no 20x20 o drift do PPO em horizonte longo é mais persistente do que qualquer técnica de stabilização que apliquei.
 
 A avg coverage fica em 94-99% em todas as configurações e em todos os tamanhos, então o agente encontra a maioria das células. O que diferencia as estratégias é a capacidade de fechar a cobertura — encontrar as últimas 1-5 células antes do `max_steps`. É um problema de eficiência, não de exploração.
 
-Sobre o critério "cobertura próxima de 100%" do enunciado, há duas leituras possíveis. Ao descrever o baseline atual, o enunciado cita números no formato `75/100, 78/100`, ou seja, a métrica **Full Coverage Rate** (a fração dos episódios em que o agente cobriu literalmente todas as células livres). No critério-alvo o termo é só "cobertura", sem qualificar. Em uma corrida de 100 episódios em 20x20 com a config `maskable_bc_kl`, o agente cobre em média 94.4% das células de cada episódio, mas só 1% dos episódios são fechados completamente. Como a métrica que o enunciado usa para descrever o baseline é Full Coverage Rate, esta é a leitura mais conservadora do critério, e é a que ranqueia as estratégias na discussão. Reporto avg coverage e a métrica filtrada (sobre solúveis) lado a lado para evitar ambiguidade.
+Sobre o critério "cobertura próxima de 100%" do enunciado, há duas leituras possíveis. Ao descrever o baseline atual, o enunciado cita números no formato `75/100, 78/100`, ou seja, a métrica **Full Coverage Rate** (a fração dos episódios em que o agente cobriu literalmente todas as células livres). No critério-alvo o termo é só "cobertura", sem qualificar. Em uma corrida de 100 episódios em 20x20 com a config `maskable_bc_kl`, o agente cobre em média 94.4% das células de cada episódio, mas só 1% dos episódios são fechados completamente. Como a métrica que o enunciado usa para descrever o baseline é Full Coverage Rate, esta é a leitura mais conservadora do critério, e é a que ranqueia as estratégias na discussão. Reporto avg coverage e a métrica filtrada (sobre solucionáveis) lado a lado para evitar ambiguidade.
 
 ## Comparação com baselines clássicos
 
 Para contextualizar os ganhos do RL, comparei as estratégias contra dois baselines não-learning. Ambos rodam no mesmo `GridWorldCPPEnv` com as mesmas 3 seeds, mantendo a observabilidade parcial: o mapa interno só é construído a partir das janelas 3x3 que o agente realmente observou (nunca a partir de oráculo). O **frontier-based exploration** mantém uma matriz `size × size` que registra cada célula como desconhecida, livre-visitada, livre-vista-mas-não-visitada, ou parede. A cada step atualiza essa matriz com a janela 3x3 atual, faz BFS sobre as células livres conhecidas até a fronteira (célula vista mas não visitada) mais próxima, e dá um passo nessa direção. Quando não há fronteira conhecida, pega a ação que maximiza a quantidade de células desconhecidas que entrarão na próxima janela. O **boustrophedon** faz varredura sistemática linha a linha (anda pra direita até bater em parede, desce uma linha, anda pra esquerda, desce, e assim por diante); quando direção horizontal e "descer" estão ambas bloqueadas, recorre ao mecanismo do frontier. O código fica em `broom/baselines/`, e roda com `python -m broom.run_scripted`.
 
-Resultados (média de 3 seeds, 100 episódios cada, full coverage rate raw / sobre solúveis):
+Resultados (média de 3 seeds, 100 episódios cada, full coverage rate raw / sobre solucionáveis):
 
 | Algoritmo | 5x5 | 10x10 | 20x20 |
 |---|---|---|---|
@@ -411,7 +411,7 @@ Avg coverage:
 | Boustrophedon | 99.1% | 92.1% | 54.1% |
 | Melhor RL (`maskable_bc_kl`, 1 seed) | 98.8% | 99.8% | 94.4% |
 
-O frontier-based domina em todos os grids: no 20x20, onde o melhor RL fecha 1% dos episódios, o frontier fecha 77% (100% sobre solúveis). A avg coverage do frontier em 20x20 é 99.9%, ou seja, ele praticamente cobre o mapa todo. É um upper bound prático: com mapa interno explícito + BFS, o problema é tratável dentro do orçamento de 1000 passos.
+O frontier-based domina em todos os grids: no 20x20, onde o melhor RL fecha 1% dos episódios, o frontier fecha 77% (100% sobre solucionáveis). A avg coverage do frontier em 20x20 é 99.9%, ou seja, ele praticamente cobre o mapa todo. É um upper bound prático: com mapa interno explícito + BFS, o problema é tratável dentro do orçamento de 1000 passos.
 
 O boustrophedon mostra a importância dos obstáculos. Em 5x5 (3 obstáculos, 22 células livres), o zigzag basta — 94% de full coverage, igual ao frontier. Em 10x10 (12 obstáculos), o zigzag fica preso a cada poucas linhas e o fallback frontier não recupera bem (26%). Em 20x20 (48 obstáculos), o zigzag é virtualmente inútil (0% de fechamento). Para grids com densidade alta de obstáculos, o frontier-based é necessário; o zigzag puro só serve em mapas vazios ou quase.
 
@@ -423,7 +423,7 @@ Heatmap das full coverage rates de todas as estratégias (RL e scripted) avaliad
 
 ![heatmap full coverage](results/plots/heatmap_native_full.png)
 
-E a versão com a métrica filtrada (sobre mapas solúveis):
+E a versão com a métrica filtrada (sobre mapas solucionáveis):
 
 ![heatmap full coverage solvable](results/plots/heatmap_native_full_solvable.png)
 
@@ -435,15 +435,15 @@ E em avg coverage, a métrica que praticamente todas as estratégias bateram em 
 
 ![coverage by size avg](results/plots/coverage_by_size_avg.png)
 
-A leitura conjunta: em 5x5 quase todas as estratégias chegam a 91-97% de full coverage, com exceção das duas variantes de recurrent (~83-84%); excluindo o recurrent, o problema é trivial nesse tamanho. Em 10x10 o frontier-based clássico lidera (86%), o `maskable_bc_kl` empata em 86% como melhor RL, seguido por `maskable_v3` (84%), `enriched`/`mapcnn_bc_pbrs` (77%), curriculum (71%) e baseline (64%); boustrophedon despenca para 26% e os recurrent ficam em 1-10%. Em 20x20 só o frontier-based fecha episódios com regularidade (77% raw / 100% sobre solúveis); o melhor RL (`enriched`) chega a 9% raw / 11.8% sobre solúveis, e as outras configs do estudo do epic 7-9 colapsam para 0-1%.
+A leitura conjunta: em 5x5 quase todas as estratégias chegam a 91-97% de full coverage, com exceção das duas variantes de recurrent (~83-84%); excluindo o recurrent, o problema é trivial nesse tamanho. Em 10x10 o frontier-based clássico lidera (86%), o `maskable_bc_kl` empata em 86% como melhor RL, seguido por `maskable_v3` (84%), `enriched`/`mapcnn_bc_pbrs` (77%), curriculum (71%) e baseline (64%); boustrophedon despenca para 26% e os recurrent ficam em 1-10%. Em 20x20 só o frontier-based fecha episódios com regularidade (77% raw / 100% sobre solucionáveis); o melhor RL (`enriched`) chega a 9% raw / 11.8% sobre solucionáveis, e as outras configs do estudo do epic 7-9 colapsam para 0-1%.
 
 ## Bônus 20x20
 
-O enunciado oferece 1 ponto extra se a estratégia chegar próxima de 100% também em 20x20. Sendo direto: **com RL puro, não consegui**. O melhor RL meu em 20x20 native é o `curriculum_enriched` em 9% raw / 11.8% sobre solúveis — longe dos ~100% pedidos pelo bônus.
+O enunciado oferece 1 ponto extra se a estratégia chegar próxima de 100% também em 20x20. Sendo direto: **com RL puro, não consegui**. O melhor RL meu em 20x20 native é o `curriculum_enriched` em 9% raw / 11.8% sobre solucionáveis — longe dos ~100% pedidos pelo bônus.
 
 Quatro estratégias específicas (`mapcnn_bc_pbrs`, `maskable_v3`, `maskable_bc_kl`, além do `enriched`) tentaram atacar o gargalo do 20x20 e nenhuma rompeu. O padrão é consistente: avg coverage do agente em 20x20 fica em 92-97% (o agente explora razoavelmente bem) mas full coverage rate fica em 0-9%. As últimas 3-15 células viram sempre o problema, ficando em algum canto do mapa, fora da janela 5x5, e o RL aprende a explorar bem mas não a "voltar pra fechar" dentro dos 1000 passos de `max_steps`. As tentativas de adicionar memória global (`mapcnn_bc_pbrs`), reward redesign agressivo (`maskable_v3`) e BC + KL anchor (`maskable_bc_kl`) cada uma destravaram o teto histórico de 77% no 10x10 mas todas falharam no 20x20 native. A causa é o drift do PPO em horizonte longo (1000 passos): a fase 20x20 do curriculum corrompe sistematicamente a política de fechamento que o agente havia aprendido nas fases anteriores, mesmo com BC anchor pra puxar de volta.
 
-Vale notar que a avg coverage atinge 94-99% no 20x20 com várias configs, então pela leitura "cobertura média por episódio" o critério "próximo de 100%" é satisfeito. Pela leitura mais conservadora (full coverage rate, que é o que o enunciado cita ao descrever o baseline em `75/100`), o bônus do 20x20 não foi atingido. Também documento por curiosidade um experimento exploratório no [Apêndice](#apêndice-experimento-híbrido-fora-do-escopo-de-rl-puro): uma mistura na inferência entre o modelo `maskable_bc_kl` 10x10 e o `FrontierAgent` scripted atinge 99.6% sobre solúveis no 20x20, mas como envolve uma heurística scripted (não-RL) como componente principal, não submeto isso como solução do bônus.
+Vale notar que a avg coverage atinge 94-99% no 20x20 com várias configs, então pela leitura "cobertura média por episódio" o critério "próximo de 100%" é satisfeito. Pela leitura mais conservadora (full coverage rate, que é o que o enunciado cita ao descrever o baseline em `75/100`), o bônus do 20x20 não foi atingido. Também documento por curiosidade um experimento exploratório no [Apêndice](#apêndice-experimento-híbrido-fora-do-escopo-de-rl-puro): uma mistura na inferência entre o modelo `maskable_bc_kl` 10x10 e o `FrontierAgent` scripted atinge 99.6% sobre solucionáveis no 20x20, mas como envolve uma heurística scripted (não-RL) como componente principal, não submeto isso como solução do bônus.
 
 ## Limitações e aprendizados
 
@@ -451,11 +451,11 @@ A maior limitação prática foi o hardware: 8 GB de RAM, CPU 8 cores e uma GPU 
 
 Outra limitação foi rodar `mapcnn_bc_pbrs`, `maskable_v3` e `maskable_bc_kl` com apenas 1 seed cada, em vez das 3 seeds das primeiras configs. A decisão foi tomada porque cada uma leva ~3.5h por seed, e o sinal diagnóstico do seed 0 já era forte o suficiente para decidir continuar ou pivotar dentro do orçamento de tempo. Para os 5 primeiros configs as 3 seeds estão presentes e produzem média ± std; para os 3 últimos o número é o do seed 0 (sem std), e a comparação com os 3-seed configs é honesta sobre essa assimetria. Os timesteps por fase também ficaram fixos (300k/800k/2M), justificados pelo baseline atingir convergência razoável nos três tamanhos; outras escolhas (5M+ no 20x20) caberiam no orçamento total mas não foram testadas.
 
-A descoberta dos mapas insolúveis (~6/14/23% em 5x5/10x10/20x20) muda a leitura honesta dos resultados: o teto teórico de full coverage rate é 94/86/77% (não 100%), e o frontier scripted bate exatamente esses tetos. Mantenho a métrica raw para comparabilidade com o baseline citado pelo enunciado, mas reporto a métrica filtrada (sobre solúveis) lado a lado para mostrar a competência efetiva.
+A descoberta dos mapas insolucionáveis (~6/14/23% em 5x5/10x10/20x20) muda a leitura honesta dos resultados: o teto teórico de full coverage rate é 94/86/77% (não 100%), e o frontier scripted bate exatamente esses tetos. Mantenho a métrica raw para comparabilidade com o baseline citado pelo enunciado, mas reporto a métrica filtrada (sobre solucionáveis) lado a lado para mostrar a competência efetiva.
 
-A jornada produziu quatro descobertas principais. A primeira foi que a hipótese 2 (janela 3x3 → 5x5 + features direcionais) destravou a maior parte do 10x10: o salto 14% → 70% no 5x5 → 10x10 transfer veio só da observação enriquecida; mais informação local funcionou. A segunda foi que memória recorrente (LSTM) é cara e instável: mesmo a v2 com LSTM 256 + n_steps 512 + GPU ficou muito abaixo do enriched no 10x10. Memória explícita perdeu para estrutura na observação. A terceira foi que reward landscape destravou o teto histórico de 77% no 10x10: terminal +60 em vez de +10, truncation 0 em vez de −5, step penalty zerado pós-80% de cobertura — calibrado a partir de Theile et al. 2023 — empurrou `maskable_v3` e `maskable_bc_kl` para 84-86% raw / 92-94% sobre solúveis em 10x10. A quarta foi que PPO drift em 20x20 (long horizon) é resistente: nem KL anchor, nem PBRS, nem map memory salvaram o 20x20 native (todos fecham 0-1% raw). A transferência 10x10 → 20x20 ajuda parcialmente (32% raw / 41% sobre solúveis do `maskable_bc_kl`), mas com RL puro não atingi o bônus do 20x20 dentro do orçamento de compute.
+A jornada produziu quatro descobertas principais. A primeira foi que a hipótese 2 (janela 3x3 → 5x5 + features direcionais) destravou a maior parte do 10x10: o salto 14% → 70% no 5x5 → 10x10 transfer veio só da observação enriquecida; mais informação local funcionou. A segunda foi que memória recorrente (LSTM) é cara e instável: mesmo a v2 com LSTM 256 + n_steps 512 + GPU ficou muito abaixo do enriched no 10x10. Memória explícita perdeu para estrutura na observação. A terceira foi que reward landscape destravou o teto histórico de 77% no 10x10: terminal +60 em vez de +10, truncation 0 em vez de −5, step penalty zerado pós-80% de cobertura — calibrado a partir de Theile et al. 2023 — empurrou `maskable_v3` e `maskable_bc_kl` para 84-86% raw / 92-94% sobre solucionáveis em 10x10. A quarta foi que PPO drift em 20x20 (long horizon) é resistente: nem KL anchor, nem PBRS, nem map memory salvaram o 20x20 native (todos fecham 0-1% raw). A transferência 10x10 → 20x20 ajuda parcialmente (32% raw / 41% sobre solucionáveis do `maskable_bc_kl`), mas com RL puro não atingi o bônus do 20x20 dentro do orçamento de compute.
 
-Em síntese, para coverage path planning sob observabilidade parcial, **estrutura na observação > memória explícita**, **reward shape > exploração mais longa**, e o frontier scripted (100% sobre solúveis em todos os tamanhos) é o teto que o RL puro ainda não atravessa em 20x20.
+Em síntese, para coverage path planning sob observabilidade parcial, **estrutura na observação > memória explícita**, **reward shape > exploração mais longa**, e o frontier scripted (100% sobre solucionáveis em todos os tamanhos) é o teto que o RL puro ainda não atravessa em 20x20.
 
 Como trabalhos futuros, três direções valem investigação. Primeiro, treinar `maskable_v3` ou `maskable_bc_kl` direto no 20x20 sem curriculum, hipotetizando que o curriculum 5 → 10 → 20 do PPO derive a política do que aprendeu nas fases anteriores. Segundo, KL anchor mais agressivo no 20x20, mantendo λ alto durante toda a fase 20x20 para forçar o agente a ficar próximo ao BC e não derivar. Terceiro, residual policy real (não só inferência), em que a output do PPO seja interpretada como ajuste sobre o frontier (Silver et al. 2018) — mais engineering mas com chão duro garantido em 100% solvable. Algoritmos mais recentes como DreamerV3 (world model) ou MuZero (planning) lidam melhor com long-horizon mas o compute fica fora do orçamento doméstico.
 
@@ -463,11 +463,11 @@ Como trabalhos futuros, três direções valem investigação. Primeiro, treinar
 
 Esta seção descreve um experimento exploratório que **não foi submetido como solução do bônus do 20x20** porque mistura RL com uma heurística scripted (não-RL). Documento aqui apenas como ponto de curiosidade, para mostrar o teto prático do problema sob observabilidade parcial.
 
-A motivação foi a observação de que o modelo `maskable_bc_kl` treinado em 10x10 atinge 32% raw / 41% sobre solúveis quando avaliado em 20x20 (transferência sem retreinamento), enquanto qualquer modelo treinado direto em 20x20 fica em ~0%. A política existe — ela só não sobrevive ao treino do PPO em horizonte longo.
+A motivação foi a observação de que o modelo `maskable_bc_kl` treinado em 10x10 atinge 32% raw / 41% sobre solucionáveis quando avaliado em 20x20 (transferência sem retreinamento), enquanto qualquer modelo treinado direto em 20x20 fica em ~0%. A política existe — ela só não sobrevive ao treino do PPO em horizonte longo.
 
 A construção é uma mistura na inferência: a cada step, com probabilidade `(1 − p_model)` o agente segue a ação do `FrontierAgent` scripted (BFS sobre mapa interno construído só do que ele viu — preserva observabilidade parcial), e com probabilidade `p_model` segue a ação do modelo `maskable_bc_kl` 10x10. Implementação em `broom/eval_mixture.py`.
 
-Resultados em 20x20, 3 seeds, 100 episódios cada, full coverage rate sobre solúveis:
+Resultados em 20x20, 3 seeds, 100 episódios cada, full coverage rate sobre solucionáveis:
 
 | `p_model` | seed 0 | seed 1 | seed 2 | mean ± std |
 |---|---|---|---|---|
@@ -475,4 +475,4 @@ Resultados em 20x20, 3 seeds, 100 episódios cada, full coverage rate sobre sol�
 | 0.10 (90% frontier + 10% RL) | 98.7% | 100.0% | 100.0% | 99.6% ± 0.6% |
 | 0.20 (80% frontier + 20% RL) | 96.2% | 100.0% | 100.0% | 98.7% ± 1.8% |
 
-Por que isso não vale como solução RL do bônus: o enunciado exige "estratégia justificada com base em conceitos de RL", e com `p_model = 0.10` 90% das ações vêm de uma heurística BFS escrita à mão, não de aprendizado. Mesmo que a porção RL contribua, é difícil argumentar que a estratégia agregada é "RL" num sentido razoável. Apresentar isso como solução do bônus seria contornar o objetivo da APS. O experimento responde uma pergunta acadêmica diferente — qual é o teto prático sob observabilidade parcial — e a resposta é 100% sobre solúveis com frontier puro, com o RL ajudando a manter essa performance em um número pequeno de células onde o frontier hesitaria.
+Por que isso não vale como solução RL do bônus: o enunciado exige "estratégia justificada com base em conceitos de RL", e com `p_model = 0.10` 90% das ações vêm de uma heurística BFS escrita à mão, não de aprendizado. Mesmo que a porção RL contribua, é difícil argumentar que a estratégia agregada é "RL" num sentido razoável. Apresentar isso como solução do bônus seria contornar o objetivo da APS. O experimento responde uma pergunta acadêmica diferente — qual é o teto prático sob observabilidade parcial — e a resposta é 100% sobre solucionáveis com frontier puro, com o RL ajudando a manter essa performance em um número pequeno de células onde o frontier hesitaria.
