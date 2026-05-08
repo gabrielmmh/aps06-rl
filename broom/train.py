@@ -62,7 +62,7 @@ class TrainResult:
 
 
 def _results_dir() -> Path:
-    return Path(os.environ.get("APS07_RESULTS_DIR", "results"))
+    return Path(os.environ.get("APS08_RESULTS_DIR", "results"))
 
 
 def _register_envs():
@@ -290,7 +290,7 @@ def train_one(
     # verbose=1 prints per-rollout stats (~once every n_steps timesteps).
     # Negligible cost in wall-clock; useful for diagnosing fps, reward trend,
     # and entropy/KL during long runs.
-    verbose = int(os.environ.get("APS07_TRAIN_VERBOSE", "1"))
+    verbose = int(os.environ.get("APS08_TRAIN_VERBOSE", "1"))
 
     if _is_recurrent(config_name):
         from sb3_contrib import RecurrentPPO

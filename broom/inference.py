@@ -18,7 +18,7 @@ from gymnasium_env.grid_world_cpp import GridWorldCPPEnv
 
 
 def _results_dir() -> Path:
-    return Path(os.environ.get("APS07_RESULTS_DIR", "results"))
+    return Path(os.environ.get("APS08_RESULTS_DIR", "results"))
 
 
 def _register_envs():
