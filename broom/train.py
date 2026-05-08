@@ -27,6 +27,7 @@ from broom.configs import (
     KL_LAMBDA_INITIAL,
     MAPCNN_BC_PBRS_HYPERPARAMS,
     MASKABLE_BC_KL_HYPERPARAMS,
+    MASKABLE_FRONTIER_PBRS_HYPERPARAMS,
     MASKABLE_V3_HYPERPARAMS,
     PBRS_GAMMA,
     PHASE_MAX_STEPS,
@@ -38,6 +39,7 @@ from broom.configs import (
     ConfigName,
     GridSize,
     _maskable_v3_entropy_schedule,
+    get_max_steps,
     get_phase_n_envs,
 )
 from stable_baselines3.common.callbacks import CallbackList
@@ -83,6 +85,12 @@ def _register_envs():
             gym.register(id="gymnasium_env/GridWorldCPPV3-v0", entry_point=GridWorldCPPV3Env)
     except ImportError:
         pass
+    try:
+        from gymnasium_env.grid_world_cpp_v4 import GridWorldCPPV4Env
+        if "gymnasium_env/GridWorldCPPV4-v0" not in gym.envs.registry:
+            gym.register(id="gymnasium_env/GridWorldCPPV4-v0", entry_point=GridWorldCPPV4Env)
+    except ImportError:
+        pass
 
 
 def _env_id_for_config(config_name: ConfigName) -> str:
@@ -92,24 +100,31 @@ def _env_id_for_config(config_name: ConfigName) -> str:
         return "gymnasium_env/GridWorldCPPMapObs-v0"
     if config_name in ("maskable_v3", "maskable_bc_kl"):
         return "gymnasium_env/GridWorldCPPV3-v0"
+    if config_name == "maskable_frontier_pbrs":
+        return "gymnasium_env/GridWorldCPPV4-v0"
     return "gymnasium_env/GridWorldCPP-v0"
 
 
-def _make_env_fn(env_id: str, size: int, max_steps: int, obstacles: int, seed: int, apply_pbrs: bool = False, apply_action_mask: bool = False):
+def _make_env_fn(env_id: str, size: int, max_steps: int, obstacles: int, seed: int, apply_pbrs: bool = False, apply_action_mask: bool = False, apply_pbrs_frontier: bool = False, pbrs_frontier_gamma: float = 0.995):
     """Wraps in Monitor so SB3 populates info["episode"] = {r, l, t} on done.
 
-    If `apply_pbrs` is True, also wraps in PBRSCoverageWrapper before Monitor so
-    the shaped reward is what PPO sees during training. Eval uses the raw env
-    via inference.evaluate, which never applies PBRS.
+    Optional wrappers (none of which violate partial observability):
+      * `apply_pbrs`: PBRSCoverageWrapper with phi=coverage_ratio (used by mapcnn_bc_pbrs).
+      * `apply_pbrs_frontier`: PBRSFrontierDistanceWrapper with phi=-d_BFS/diameter
+        (used by maskable_frontier_pbrs). Mutually exclusive with `apply_pbrs`.
+      * `apply_action_mask`: sb3-contrib's ActionMasker so the V3/V4 env's
+        `action_masks` method propagates through VecEnv/Monitor for MaskablePPO.
 
-    If `apply_action_mask` is True, wraps in sb3-contrib's ActionMasker so the
-    `action_masks` method propagates through VecEnv/Monitor for MaskablePPO.
+    Eval always uses the raw env via inference.evaluate, which never applies PBRS.
     """
     def _thunk():
         _register_envs()
         env = gym.make(env_id, size=size, obs_quantity=obstacles, max_steps=max_steps)
         if apply_pbrs:
             env = PBRSCoverageWrapper(env, gamma=PBRS_GAMMA)
+        if apply_pbrs_frontier:
+            from broom.wrappers import PBRSFrontierDistanceWrapper
+            env = PBRSFrontierDistanceWrapper(env, gamma=pbrs_frontier_gamma)
         if apply_action_mask:
             from sb3_contrib.common.wrappers import ActionMasker
             env = ActionMasker(env, lambda e: e.unwrapped.action_masks())
@@ -118,8 +133,8 @@ def _make_env_fn(env_id: str, size: int, max_steps: int, obstacles: int, seed: i
     return _thunk
 
 
-def _make_vec_env(env_id: str, size: int, max_steps: int, obstacles: int, seed: int, n_envs: int, apply_pbrs: bool = False, apply_action_mask: bool = False):
-    fns = [_make_env_fn(env_id, size, max_steps, obstacles, seed + i, apply_pbrs=apply_pbrs, apply_action_mask=apply_action_mask) for i in range(n_envs)]
+def _make_vec_env(env_id: str, size: int, max_steps: int, obstacles: int, seed: int, n_envs: int, apply_pbrs: bool = False, apply_action_mask: bool = False, apply_pbrs_frontier: bool = False, pbrs_frontier_gamma: float = 0.995):
+    fns = [_make_env_fn(env_id, size, max_steps, obstacles, seed + i, apply_pbrs=apply_pbrs, apply_action_mask=apply_action_mask, apply_pbrs_frontier=apply_pbrs_frontier, pbrs_frontier_gamma=pbrs_frontier_gamma) for i in range(n_envs)]
     return DummyVecEnv(fns) if n_envs == 1 else SubprocVecEnv(fns)
 
 
@@ -186,7 +201,36 @@ def _uses_pbrs(config_name: ConfigName) -> bool:
 
 
 def _uses_action_mask(config_name: ConfigName) -> bool:
-    return config_name in ("maskable_v3", "maskable_bc_kl")
+    return config_name in ("maskable_v3", "maskable_bc_kl", "maskable_frontier_pbrs")
+
+
+def _uses_pbrs_frontier(config_name: ConfigName) -> bool:
+    return config_name == "maskable_frontier_pbrs"
+
+
+def _reset_value_head(model) -> None:
+    """Reinitialize the critic weights, keep policy + features.
+
+    Used at curriculum phase transitions. The returns of a 10x10 grid are an
+    order of magnitude larger than 5x5, so the carried-over critic produces
+    badly-calibrated advantages in the early thousands of steps and the policy
+    drifts off the BC basin (Igl 2021 ICLR; Wolczyk 2024 ICML).
+
+    Resets the final value linear head plus the value MLP (mlp_extractor.value_net
+    if present) using SB3-default orthogonal init. Policy head + feature extractor
+    are untouched so the learned exploration/closing skill carries over.
+    """
+    import torch.nn as nn
+    if hasattr(model.policy, "value_net"):
+        for module in model.policy.value_net.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, gain=1.0)
+                nn.init.zeros_(module.bias)
+    if hasattr(model.policy, "mlp_extractor") and hasattr(model.policy.mlp_extractor, "value_net"):
+        for module in model.policy.mlp_extractor.value_net.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, gain=2 ** 0.5)
+                nn.init.zeros_(module.bias)
 
 
 def _bc_warmstart_for(config_name: ConfigName, size: GridSize) -> Optional[str]:
@@ -218,13 +262,16 @@ def train_one(
     env_id = _env_id_for_config(config_name)
     n_envs = get_phase_n_envs(config_name, size)
     obstacles = PHASE_OBSTACLES[size]
-    max_steps = PHASE_MAX_STEPS[size]
+    max_steps = get_max_steps(config_name, size)
     timesteps = total_timesteps if total_timesteps is not None else PHASE_TIMESTEPS[size]
+    pbrs_frontier_gamma = MASKABLE_FRONTIER_PBRS_HYPERPARAMS["gamma"]
 
     vec_env = _make_vec_env(
         env_id, size, max_steps, obstacles, seed, n_envs,
         apply_pbrs=_uses_pbrs(config_name),
         apply_action_mask=_uses_action_mask(config_name),
+        apply_pbrs_frontier=_uses_pbrs_frontier(config_name),
+        pbrs_frontier_gamma=pbrs_frontier_gamma,
     )
 
     results = _results_dir()
@@ -235,7 +282,7 @@ def train_one(
 
     episode_logger = _EpisodeLogger(curve_path)
     callbacks: list[BaseCallback] = [episode_logger]
-    if config_name == "maskable_v3":
+    if config_name in ("maskable_v3", "maskable_frontier_pbrs"):
         callbacks.append(_EntropySchedule(_maskable_v3_entropy_schedule))
     callback = CallbackList(callbacks) if len(callbacks) > 1 else callbacks[0]
 
@@ -298,6 +345,16 @@ def train_one(
                     kl_lambda_schedule=kl_schedule,
                     **MASKABLE_BC_KL_HYPERPARAMS,
                 )
+    elif config_name == "maskable_frontier_pbrs":
+        from sb3_contrib import MaskablePPO
+        if init_from is not None:
+            model = MaskablePPO.load(init_from, env=vec_env, verbose=verbose, **MASKABLE_FRONTIER_PBRS_HYPERPARAMS)
+            # Reset value head: the critic from the prior phase is calibrated
+            # for that grid's return scale and would push the policy off-manifold
+            # in early steps of the new phase (Igl 2021, Wolczyk 2024).
+            _reset_value_head(model)
+        else:
+            model = MaskablePPO("MultiInputPolicy", vec_env, seed=seed, verbose=verbose, **MASKABLE_FRONTIER_PBRS_HYPERPARAMS)
     else:
         if init_from is not None:
             model = PPO.load(init_from, env=vec_env, verbose=verbose, **PPO_HYPERPARAMS)

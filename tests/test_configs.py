@@ -50,6 +50,7 @@ def test_config_names_complete():
         "mapcnn_bc_pbrs",
         "maskable_v3",
         "maskable_bc_kl",
+        "maskable_frontier_pbrs",
     }
     assert set(ConfigName.__args__) == expected
 
@@ -157,3 +158,36 @@ def test_kl_lambda_schedule_decays_linearly():
     assert abs(schedule(500_000) - 0.525) < 0.01
     # Beyond schedule: clamped at final
     assert schedule(2_000_000) == 0.05
+
+
+def test_maskable_frontier_pbrs_hyperparams_use_long_horizon_calibration():
+    from broom.configs import (
+        CONFIG_MAX_STEPS_OVERRIDE,
+        MASKABLE_FRONTIER_PBRS_HYPERPARAMS,
+        get_max_steps,
+    )
+
+    assert MASKABLE_FRONTIER_PBRS_HYPERPARAMS["device"] == "cuda"
+    # gamma 0.995 (not 0.999) — middle ground for ~200-step effective horizon
+    assert MASKABLE_FRONTIER_PBRS_HYPERPARAMS["gamma"] == 0.995
+    # n_steps 2048 (longer rollouts than maskable_bc_kl's 1024)
+    assert MASKABLE_FRONTIER_PBRS_HYPERPARAMS["n_steps"] == 2048
+    # learning_rate 5e-5 (smaller than maskable_v3's 3e-4 to reduce drift)
+    assert MASKABLE_FRONTIER_PBRS_HYPERPARAMS["learning_rate"] == 5e-5
+    # clip_range 0.1 (tighter than default 0.2 — prevents large updates)
+    assert MASKABLE_FRONTIER_PBRS_HYPERPARAMS["clip_range"] == 0.1
+    # Net arch [256, 256]
+    assert MASKABLE_FRONTIER_PBRS_HYPERPARAMS["policy_kwargs"]["net_arch"] == [256, 256]
+
+
+def test_max_steps_override_for_frontier_pbrs_on_20x20():
+    from broom.configs import get_max_steps
+
+    # Other configs unchanged
+    assert get_max_steps("baseline", 20) == 1000
+    assert get_max_steps("maskable_bc_kl", 20) == 1000
+    # frontier_pbrs gets 1500 on 20x20 (more time to close)
+    assert get_max_steps("maskable_frontier_pbrs", 20) == 1500
+    # frontier_pbrs unchanged on smaller grids
+    assert get_max_steps("maskable_frontier_pbrs", 5) == 200
+    assert get_max_steps("maskable_frontier_pbrs", 10) == 500

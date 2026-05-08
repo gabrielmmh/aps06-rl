@@ -27,6 +27,7 @@ CURRICULUM_CONFIGS: tuple[ConfigName, ...] = (
     "mapcnn_bc_pbrs",
     "maskable_v3",
     "maskable_bc_kl",
+    "maskable_frontier_pbrs",
 )
 
 
