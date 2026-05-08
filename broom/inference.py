@@ -42,6 +42,12 @@ def _register_envs():
             gym.register(id="gymnasium_env/GridWorldCPPV3-v0", entry_point=GridWorldCPPV3Env)
     except ImportError:
         pass
+    try:
+        from gymnasium_env.grid_world_cpp_v4 import GridWorldCPPV4Env
+        if "gymnasium_env/GridWorldCPPV4-v0" not in gym.envs.registry:
+            gym.register(id="gymnasium_env/GridWorldCPPV4-v0", entry_point=GridWorldCPPV4Env)
+    except ImportError:
+        pass
 
 
 def _env_id_for_config(config_name: ConfigName) -> str:
@@ -51,6 +57,8 @@ def _env_id_for_config(config_name: ConfigName) -> str:
         return "gymnasium_env/GridWorldCPPMapObs-v0"
     if config_name in ("maskable_v3", "maskable_bc_kl"):
         return "gymnasium_env/GridWorldCPPV3-v0"
+    if config_name == "maskable_frontier_pbrs":
+        return "gymnasium_env/GridWorldCPPV4-v0"
     return "gymnasium_env/GridWorldCPP-v0"
 
 
@@ -68,6 +76,9 @@ def _load_model(model_path: str, config_name: ConfigName, env: gym.Env):
         from sb3_contrib import MaskablePPO
         # At inference we don't need the KL anchor; load as plain MaskablePPO
         # since the saved policy weights are state-dict compatible.
+        return MaskablePPO.load(model_path, env=env, device="cpu")
+    if config_name == "maskable_frontier_pbrs":
+        from sb3_contrib import MaskablePPO
         return MaskablePPO.load(model_path, env=env, device="cpu")
     return PPO.load(model_path, env=env, device="cpu")
 
@@ -118,7 +129,7 @@ def evaluate(
             if config_name in ("curriculum_recurrent", "curriculum_recurrent_v2"):
                 action, lstm_state = model.predict(obs, state=lstm_state, episode_start=episode_starts, deterministic=False)
                 episode_starts = np.zeros((1,), dtype=bool)
-            elif config_name in ("maskable_v3", "maskable_bc_kl"):
+            elif config_name in ("maskable_v3", "maskable_bc_kl", "maskable_frontier_pbrs"):
                 masks = env.unwrapped.action_masks()
                 action, _ = model.predict(obs, deterministic=False, action_masks=masks)
             else:

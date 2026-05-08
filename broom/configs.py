@@ -16,6 +16,7 @@ ConfigName = Literal[
     "mapcnn_bc_pbrs",
     "maskable_v3",
     "maskable_bc_kl",
+    "maskable_frontier_pbrs",
 ]
 GridSize = Literal[5, 10, 20]
 
@@ -171,6 +172,74 @@ BC_V3_WARMSTART_PATH = "results/models/bc_warmstart_v3.zip"
 KL_LAMBDA_INITIAL = 1.0
 KL_LAMBDA_FINAL = 0.05
 KL_LAMBDA_DECAY_TIMESTEPS = 3_100_000
+
+
+# Maskable PPO + Frontier feature + distance-PBRS (Epic 10).
+#
+# Adds three things to maskable_v3 to attack the 20x20 native closing-cell ceiling:
+#
+# 1) Structured memory `visited_pooled` (2, 8, 8) and `frontier` (3) features in
+#    the V4 env (see gymnasium_env/grid_world_cpp_v4.py). Partial-observability
+#    safe: visited_pooled only encodes the agent's trajectory; frontier BFS only
+#    uses cells the agent has actually observed.
+#
+# 2) PBRS with potential = -bfs_distance_to_frontier / diameter. Magnitude
+#    ~±0.05/step on 20x20, comparable to the +1 new-cell reward, dense across
+#    the entire trajectory. Theoretically policy-invariant (Ng-Harada-Russell
+#    1999, Devlin & Kudenko AAMAS 2012 for dynamic potentials).
+#
+# 3) Value-head reset between curriculum phases (Igl 2021, Wolczyk 2024) so
+#    the critic recalibrates fast for the new grid's return scale instead of
+#    pulling the policy out of the BC basin during early 20x20 training.
+#
+# Plus three smaller adjustments calibrated for long-horizon CPP:
+#  - gamma 0.995 (vs 0.999 in maskable_bc_kl) — effective horizon ~200 steps,
+#    aligned with closing decisions; less noisy advantage estimation.
+#  - max_steps 1500 on 20x20 (vs 1000 default) — gives the agent margin to
+#    close even with a sub-optimal policy. Other sizes unchanged.
+#  - n_steps 2048 (vs 1024) — longer rollouts give PPO more frontier-distance
+#    transitions per update, less stale advantage estimation under lr 5e-5.
+MASKABLE_FRONTIER_PBRS_HYPERPARAMS = {
+    "ent_coef": 0.02,
+    "device": "cuda",
+    "n_steps": 2048,
+    "gamma": 0.995,
+    "gae_lambda": 0.95,
+    "learning_rate": 5e-5,
+    "clip_range": 0.1,
+    "policy_kwargs": {"net_arch": [256, 256]},
+}
+
+# Per-config max_steps override (only set when different from PHASE_MAX_STEPS).
+CONFIG_MAX_STEPS_OVERRIDE: dict[tuple[str, int], int] = {
+    ("maskable_frontier_pbrs", 20): 1500,
+}
+
+
+def get_max_steps(config_name: str, size: int) -> int:
+    """Returns the max_steps for a given (config, size) pair.
+
+    Most configs use PHASE_MAX_STEPS[size]; some long-horizon configs override
+    on specific sizes via CONFIG_MAX_STEPS_OVERRIDE.
+    """
+    return CONFIG_MAX_STEPS_OVERRIDE.get((config_name, size), PHASE_MAX_STEPS[size])
+
+
+# Per-config timesteps override (only set when different from PHASE_TIMESTEPS).
+# maskable_frontier_pbrs gets 4M on 20x20 (vs 2M default) since the closing-cell
+# learning is the hardest part and benefits from more experience.
+CONFIG_TIMESTEPS_OVERRIDE: dict[tuple[str, int], int] = {
+    ("maskable_frontier_pbrs", 20): 4_000_000,
+}
+
+
+def get_timesteps(config_name: str, size: int) -> int:
+    """Returns the training timesteps for a given (config, size) pair.
+
+    Most configs use PHASE_TIMESTEPS[size]; long-horizon configs override on
+    specific sizes via CONFIG_TIMESTEPS_OVERRIDE.
+    """
+    return CONFIG_TIMESTEPS_OVERRIDE.get((config_name, size), PHASE_TIMESTEPS[size])
 
 
 # Curriculum chain: each entry is (size, init_from_size or None)

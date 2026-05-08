@@ -78,6 +78,7 @@ RL_CONFIGS = (
     "mapcnn_bc_pbrs",
     "maskable_v3",
     "maskable_bc_kl",
+    "maskable_frontier_pbrs",
 )
 SCRIPTED_ALGOS = ("frontier", "boustrophedon")
 
