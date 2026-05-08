@@ -417,7 +417,7 @@ O `maskable_bc_kl` adiciona o KL anchor (`λ · KL(π ‖ π_BC_frozen)`) ao `ma
 
 **O 20x20 native ainda fica em 1% raw**, confirmando que nem o KL anchor pra BC consegue prevenir o drift do PPO na fase 20x20. A boa notícia é o **20x20→10x10 = 64% raw / 74.4% sobre solúveis** (vs 54% / 63% do `maskable_v3`), indicando que o KL anchor *preservou* mais competência da fase 10x10 mesmo após a fase 20x20.
 
-A leitura final: pra 5x5 e 10x10, **maskable_bc_kl atinge ou supera o frontier scripted**. Pra 20x20 native, treinar diretamente nessa fase não funciona com nossas técnicas (drift), mas o **modelo treinado em 10x10 transfere bem pro 20x20** (32% raw, 41.6% sobre solúveis) — discussão na seção [Estratégia híbrida pro 20x20](#estratégia-híbrida-pro-20x20).
+A leitura final: pra 5x5 e 10x10, **maskable_bc_kl atinge ou supera o frontier scripted**. Pra 20x20 native, treinar diretamente nessa fase não funciona com nossas técnicas (drift). O **modelo treinado em 10x10 transfere razoavelmente pro 20x20** (32% raw, 41.6% sobre solúveis), mas isso não é suficiente pra reclamar o bônus. Discussão completa em [Bônus 20x20](#bônus-20x20).
 
 ## Análise
 
@@ -461,7 +461,7 @@ Conclusão da hipótese 4: o **reward landscape era de fato o gargalo no 10x10**
 
 ### O bônus 20x20
 
-Pura RL nossa (best: enriched ou maskable_bc_kl) fecha 9-12% sobre solúveis no 20x20 native. A **estratégia híbrida (maskable_bc_kl 10x10 + frontier scripted, p_model = 0.10)** chega a **98.7% sobre solúveis** com o frontier servindo como base e o RL refinando 10% das ações. Discussão completa na seção [Bônus 20x20](#bônus-20x20).
+Pura RL nossa (best: enriched) fecha 9% raw / 11.7% sobre solúveis no 20x20 native — longe dos 100%. **O bônus do 20x20 não foi atingido com RL puro.** Quatro tentativas (enriched, mapcnn_bc_pbrs, maskable_v3, maskable_bc_kl) confirmam que o drift do PPO em horizonte longo bloqueia o fechamento. Avg coverage sim chega a 97-99% — se essa for a leitura aceita do "próximo de 100%", o bônus se sustenta. Discussão honesta completa na seção [Bônus 20x20](#bônus-20x20).
 
 ### Trade-off de avg coverage vs full coverage rate
 
@@ -548,7 +548,7 @@ A leitura conjunta:
 
 ## Bônus 20x20
 
-O enunciado oferece 1 ponto extra se a estratégia chegar próxima de 100% também em 20x20. Pelo critério **avg coverage**, várias configs nossas atingem 94-99% (defensável como "próximo de 100%"). Pelo critério **full coverage rate** sobre **mapas solúveis** (após excluir os 23% de mapas com células ilhadas que são fisicamente impossíveis de fechar), o frontier scripted bate **100%** mas nenhuma RL pura nossa cruza 12%.
+O enunciado oferece 1 ponto extra se a estratégia chegar **próxima de 100%** também em 20x20. Sendo honesto e direto: **com RL puro, não conseguimos.** A melhor RL nossa em 20x20 native é o `curriculum_enriched` em **9% raw / 11.7% sobre solúveis**, ou seja, longe dos ~100% pedidos pelo bônus.
 
 ### O fechamento como gargalo central
 
@@ -556,45 +556,16 @@ Avg coverage do `maskable_v3` em 20x20 native é **92.1%** (em média visita ~32
 
 A `mapcnn_bc_pbrs`, a `maskable_v3` e a `maskable_bc_kl` foram desenhadas exatamente pra atacar esse fechamento (memória global, reward redesign, BC + KL anchor). Em 10x10 destravaram o teto histórico de 77% raw e atingiram **86% raw / 100% sobre solúveis** (match com o frontier). Mas em 20x20 native, **todas as três caem pra ~0% raw** com avg coverage alta. O drift do PPO durante a fase 20x20 é resistente até ao KL anchor pra BC.
 
-### Estratégia híbrida pro 20x20
+### Pista que aponta pra solução fora do escopo de RL puro
 
-A insight crítica: **o modelo treinado em 10x10 com `maskable_bc_kl` transfere bem pro 20x20** (32% raw / 41.6% sobre solúveis), enquanto o modelo treinado em 20x20 nativo regride. Isso sugere que o RL aprendeu uma policy de fechamento boa no 10x10 mas a fase 20x20 do curriculum corrompe essa skill.
+Achado interessante (mas que **não submetemos como solução do bônus**): o modelo treinado em 10x10 com `maskable_bc_kl` transfere razoavelmente pro 20x20 (**32% raw / 41.6% sobre solúveis**), enquanto o modelo treinado em 20x20 nativo regride a 1%. Indica que a *política* aprendida no 10x10 generaliza, mas o treino direto em 20x20 corrompe.
 
-Em vez de continuar tentando treinar o agente em 20x20 (caminho que parece bloqueado), adotamos uma **estratégia híbrida na inferência**: a cada step, com probabilidade `(1 − p_model)` o agente segue a ação do `FrontierAgent` scripted (BFS sobre mapa interno construído só do que ele viu, preservando observabilidade parcial), e com probabilidade `p_model` segue a ação do `maskable_bc_kl` 10x10. Implementação em `broom/eval_mixture.py`.
+Por curiosidade exploratória (descrita em [Apêndice: experimento híbrido](#apêndice-experimento-híbrido-fora-do-escopo-de-rl-puro)), testamos uma estratégia de inferência que mistura o nosso modelo RL com o `FrontierAgent` scripted. Isso faz 98.7% sobre solúveis no 20x20, **mas o frontier não é RL** (é uma heurística de busca BFS escrita à mão), então essa abordagem **não satisfaz o requisito do enunciado de "estratégia justificada com base em conceitos de RL"**. Documentamos a exploração porque ela é tecnicamente útil pra entender o teto do problema, não pra reclamar o bônus.
 
-Resultados (modelo `maskable_bc_kl_seed0_10x10.zip` avaliado em 20x20, 100 episódios por seed):
+### Conclusão honesta
 
-| `p_model` | seed | full raw | **full sobre solúveis** |
-|---|---|---|---|
-| 0.00 (frontier puro) | 0 | 78% | 100% |
-| **0.10** (90% frontier + 10% RL) | 0 | 77% | **98.7%** |
-| 0.20 (80% frontier + 20% RL) | 0 | 75% | 96.2% |
-| 0.50 | 0 | 70% | 89.7% |
-| 1.00 (RL puro) | 0 | 35% | 44.9% |
-
-Com `p_model = 0.1`, **fechamos 98.7% dos mapas solúveis em 20x20** — bate o critério de "próximo de 100%" pelo avg coverage E pelo full coverage rate sobre solúveis simultaneamente. O RL contribui em 10% das ações (não é zero — o frontier puro daria 100% sobre solúveis, RL puro daria 45%). Argumentamos que isso é uma **estratégia híbrida defensável**: o frontier serve como prior estrutural barato, e a política treinada com `maskable_bc_kl` refina decisões em ~10% dos steps.
-
-Multi-seed pra std dev (full coverage rate sobre solúveis, 100 episódios por seed):
-
-| `p_model` | seed 0 | seed 1 | seed 2 | **mean ± std** |
-|---|---|---|---|---|
-| 0.00 | 100.0% | 100.0% | 100.0% | **100.0% ± 0.0%** |
-| **0.10** | 98.7% | 100.0% | 100.0% | **99.6% ± 0.6%** |
-| 0.20 | 96.2% | 100.0% | 100.0% | **98.7% ± 1.8%** |
-
-A estabilidade entre seeds confirma que o resultado não é artefato de uma seed sortuda. Em raw (sobre todos os 100 mapas), os números ficam em 75-78% (mean 76.7% ± 1.2% para p=0.10) — limitado pelo teto de 77% dos 23% de mapas insolúveis em 20x20.
-
-**Caveat metodológico**: a inferência híbrida usa `deterministic=False` na chamada do `model.predict` (mesmo padrão do resto do README, pra consistência). Isso significa que, nas ações onde a moeda do mixture aponta pro PPO, o agente sampleia da distribuição de softmax do policy em vez de pegar argmax. Mantém a comparabilidade com as outras configs (todas usam estocástica), e o teste com `deterministic=True` em uma seção anterior mostrou que a versão determinística regride ~30-70pp em todas as configs — então a versão estocástica é a que reflete a competência do agente.
-
-### A discussão honesta sobre o bônus
-
-1. **Pura RL nossa não consegue fechar 20x20 native.** Confirmado em 4 configs (`enriched`, `mapcnn_bc_pbrs`, `maskable_v3`, `maskable_bc_kl`). Drift do PPO em horizonte longo (1000 passos) destrói a policy de fechamento.
-
-2. **Mas a transferência 10x10 → 20x20 funciona.** O `maskable_bc_kl` 10x10 model atinge 32% raw / 41.6% sobre solúveis no 20x20, sem ter sido treinado naquele tamanho. Sinal de que a *política* aprendida no 10x10 generaliza, mas o treino direto em 20x20 corrompe.
-
-3. **Estratégia híbrida bate o bônus.** Mistura frontier + 10x10 model com `p_model = 0.1` faz **98.7% sobre solúveis** no 20x20. Com 23% de mapas insolúveis na avaliação, isso é o melhor matematicamente possível.
-
-4. **Por que aceitar o híbrido como solução RL?** Porque a porção scripted (frontier) preserva observabilidade parcial (constrói mapa interno só do que o agente viu, sem oráculo) e a porção RL contribui ações ativamente. É um *learned + scripted* hybrid, não puro scripted. Caminho explorado em diversos papers de hierarchical RL e residual policy learning (Silver et al. 2018, Johannink et al. 2019, Alakuijala et al. 2021).
+- **Bônus 20x20 não foi atingido com RL puro.** A barreira é o drift do PPO em horizonte longo (1000 passos) — quatro estratégias diferentes (`enriched`, `mapcnn_bc_pbrs`, `maskable_v3`, `maskable_bc_kl`) confirmam que treino direto no 20x20 não converge para política de fechamento, mesmo com BC warm-start + KL anchor.
+- **Avg coverage** chega a 97.3% (`enriched`) e 98.9% (`maskable_bc_kl` 10x10 model avaliado em 20x20). Em "cobertura média por episódio" temos os ~100% pedidos. Em "fração de episódios fechados completamente" não temos. Se a leitura do enunciado for avg coverage, ganhamos. Se for full coverage rate (que é o que o enunciado cita ao descrever o baseline `75/100`), não ganhamos no 20x20.
 
 ## Limitações e trabalhos futuros
 
@@ -623,6 +594,34 @@ A jornada teve quatro descobertas principais, em ordem cronológica:
 
 3. **Reward landscape destravou o teto histórico de 77% no 10x10.** Terminal +60 em vez de +10, truncation 0 em vez de −5, step penalty zerado pós-80% de cobertura — calibrado a partir de Theile et al. 2023 — empurrou `maskable_v3` e `maskable_bc_kl` pra 84-86% raw / 97.7-100% sobre solúveis em 10x10. Match com o frontier.
 
-4. **PPO drift em 20x20 (long horizon) é resistente.** Nem KL anchor, nem PBRS, nem map memory salvaram o 20x20 native (todos fecham 0-1% raw). Mas a transferência 10x10 → 20x20 funciona bem (32% raw / 41.6% solvable do `maskable_bc_kl`), e a estratégia híbrida (mistura com frontier scripted, p_model = 0.10) atinge **98.7% sobre solúveis** no 20x20 — ganhando o bônus.
+4. **PPO drift em 20x20 (long horizon) é resistente.** Nem KL anchor, nem PBRS, nem map memory salvaram o 20x20 native (todos fecham 0-1% raw). A transferência 10x10 → 20x20 ajuda parcialmente (32% raw / 41.6% solvable do `maskable_bc_kl`), mas **com RL puro não atingimos o bônus do 20x20** dentro do orçamento de compute. Apresentamos uma exploração híbrida no apêndice (frontier + RL) só pra mostrar o teto teórico do problema — sem reclamar o bônus por ela já que não é RL.
 
-Síntese: pra coverage path planning sob observabilidade parcial, **estrutura na observação > memória explícita**, **reward shape > exploração mais longa**, e **transfer + ensemble com scripted > treino direto em horizonte muito longo**. O frontier scripted como upper bound (100% sobre solúveis em todos os tamanhos) define o teto que o RL ainda não atravessou em RL puro mas é alcançável via híbridos.
+Síntese: pra coverage path planning sob observabilidade parcial, **estrutura na observação > memória explícita**, e **reward shape > exploração mais longa**. O frontier scripted como upper bound (100% sobre solúveis em todos os tamanhos) define o teto que o RL puro ainda não atravessou em 20x20.
+
+## Apêndice: experimento híbrido (fora do escopo de RL puro)
+
+Esta seção descreve um experimento exploratório que **não submetemos como solução do bônus do 20x20**, porque mistura RL com uma heurística scripted (não-RL). O documentamos porque os números são úteis pra contextualizar o teto do problema sob observabilidade parcial.
+
+### A motivação
+
+O modelo `maskable_bc_kl` treinado em 10x10 atinge **32% raw / 41.6% sobre solúveis** quando avaliado em 20x20 (transferência sem retreinamento). É melhor que qualquer modelo treinado direto em 20x20 (todos em ~0%). Sinal de que a política existe — ela só não sobrevive ao treino do PPO em horizonte longo.
+
+### A construção
+
+Mistura na inferência: a cada step do agente, com probabilidade `(1 − p_model)` o agente segue a ação do `FrontierAgent` scripted (BFS sobre mapa interno construído só do que ele viu — preserva observabilidade parcial), e com probabilidade `p_model` segue a ação do nosso modelo `maskable_bc_kl` 10x10. Implementação em `broom/eval_mixture.py`.
+
+### Os números (3 seeds, 100 episódios cada, full coverage rate sobre solúveis)
+
+| `p_model` | seed 0 | seed 1 | seed 2 | mean ± std |
+|---|---|---|---|---|
+| 0.00 (frontier puro, sem RL) | 100.0% | 100.0% | 100.0% | 100.0% ± 0.0% |
+| 0.10 (90% frontier + 10% RL) | 98.7% | 100.0% | 100.0% | 99.6% ± 0.6% |
+| 0.20 | 96.2% | 100.0% | 100.0% | 98.7% ± 1.8% |
+| 0.50 | 89.7% | (n/a) | (n/a) | (1 seed só) |
+| 1.00 (RL puro, sem frontier) | 44.9% | (n/a) | (n/a) | (1 seed só) |
+
+### Por que isso não vale como solução RL do bônus
+
+O enunciado exige "estratégia justificada com base em conceitos de RL". Com `p_model = 0.10`, **90% das ações vêm de uma heurística BFS escrita à mão**, não de aprendizado. Mesmo que a porção RL contribua, é difícil argumentar que a estratégia AGREGADA é "RL". Apresentar isso como solução do bônus seria contornar o objetivo da APS.
+
+A documentamos porque ela responde uma pergunta acadêmica diferente: **qual é o teto prático sob observabilidade parcial?** Resposta: 100% sobre solúveis (frontier puro), e o RL contribui para *manter* essa performance em algumas células onde o frontier hesita, mas não consegue *sozinho* atingir esse nível em 20x20 dentro do nosso orçamento de compute.
