@@ -13,6 +13,7 @@ import numpy as np
 from stable_baselines3 import PPO
 
 from broom.configs import PHASE_MAX_STEPS, PHASE_OBSTACLES, ConfigName, GridSize
+from broom.solvability import count_reachable_cells
 from gymnasium_env.grid_world_cpp import GridWorldCPPEnv
 
 
@@ -29,11 +30,27 @@ def _register_envs():
             gym.register(id="gymnasium_env/GridWorldCPPEnriched-v0", entry_point=GridWorldCPPEnrichedEnv)
     except ImportError:
         pass
+    try:
+        from gymnasium_env.grid_world_cpp_mapobs import GridWorldCPPMapObsEnv
+        if "gymnasium_env/GridWorldCPPMapObs-v0" not in gym.envs.registry:
+            gym.register(id="gymnasium_env/GridWorldCPPMapObs-v0", entry_point=GridWorldCPPMapObsEnv)
+    except ImportError:
+        pass
+    try:
+        from gymnasium_env.grid_world_cpp_v3 import GridWorldCPPV3Env
+        if "gymnasium_env/GridWorldCPPV3-v0" not in gym.envs.registry:
+            gym.register(id="gymnasium_env/GridWorldCPPV3-v0", entry_point=GridWorldCPPV3Env)
+    except ImportError:
+        pass
 
 
 def _env_id_for_config(config_name: ConfigName) -> str:
     if config_name == "curriculum_enriched":
         return "gymnasium_env/GridWorldCPPEnriched-v0"
+    if config_name == "mapcnn_bc_pbrs":
+        return "gymnasium_env/GridWorldCPPMapObs-v0"
+    if config_name in ("maskable_v3", "maskable_bc_kl"):
+        return "gymnasium_env/GridWorldCPPV3-v0"
     return "gymnasium_env/GridWorldCPP-v0"
 
 
@@ -44,6 +61,14 @@ def _load_model(model_path: str, config_name: ConfigName, env: gym.Env):
         # 100-episode evaluation loop, which doesn't benefit from GPU much
         # (one env, no batching).
         return RecurrentPPO.load(model_path, env=env, device="cpu")
+    if config_name == "maskable_v3":
+        from sb3_contrib import MaskablePPO
+        return MaskablePPO.load(model_path, env=env, device="cpu")
+    if config_name == "maskable_bc_kl":
+        from sb3_contrib import MaskablePPO
+        # At inference we don't need the KL anchor; load as plain MaskablePPO
+        # since the saved policy weights are state-dict compatible.
+        return MaskablePPO.load(model_path, env=env, device="cpu")
     return PPO.load(model_path, env=env, device="cpu")
 
 
@@ -69,13 +94,21 @@ def evaluate(
     env = gym.make(env_id, size=eval_size, obs_quantity=obstacles, max_steps=max_steps)
     model = _load_model(model_path, config_name, env)
 
-    rows: list[tuple[int, float, int, bool]] = []
+    rows: list[tuple[int, float, int, bool, bool]] = []
     full_coverage_count = 0
+    solvable_count = 0
+    full_coverage_count_solvable = 0
     coverages: list[float] = []
     steps_list: list[int] = []
 
     for ep in range(n_episodes):
         obs, info = env.reset(seed=seed * 1000 + ep)
+        # Compute whether this map is solvable (all free cells reachable from start)
+        # right after reset, before the agent has moved. Stored per-episode so the
+        # filtered metric can be recomputed offline.
+        reachable = count_reachable_cells(env.unwrapped)
+        solvable = reachable >= env.unwrapped.total_free_cells
+
         lstm_state = None
         episode_starts = np.ones((1,), dtype=bool)
         terminated = truncated = False
@@ -85,17 +118,24 @@ def evaluate(
             if config_name in ("curriculum_recurrent", "curriculum_recurrent_v2"):
                 action, lstm_state = model.predict(obs, state=lstm_state, episode_start=episode_starts, deterministic=False)
                 episode_starts = np.zeros((1,), dtype=bool)
+            elif config_name in ("maskable_v3", "maskable_bc_kl"):
+                masks = env.unwrapped.action_masks()
+                action, _ = model.predict(obs, deterministic=False, action_masks=masks)
             else:
                 action, _ = model.predict(obs, deterministic=False)
             obs, reward, terminated, truncated, info = env.step(int(action))
             steps += 1
 
         coverage = info["coverage"]
-        rows.append((ep, coverage, steps, terminated))
+        rows.append((ep, coverage, steps, terminated, solvable))
         coverages.append(coverage)
         steps_list.append(steps)
         if terminated and not truncated:
             full_coverage_count += 1
+            if solvable:
+                full_coverage_count_solvable += 1
+        if solvable:
+            solvable_count += 1
 
     env.close()
 
@@ -107,7 +147,7 @@ def evaluate(
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["episode", "coverage", "steps", "terminated"])
+        w.writerow(["episode", "coverage", "steps", "terminated", "solvable"])
         w.writerows(rows)
 
     return {
@@ -115,6 +155,10 @@ def evaluate(
         "seed": seed,
         "eval_size": eval_size,
         "full_coverage_rate": full_coverage_count / n_episodes,
+        "full_coverage_rate_solvable": (
+            full_coverage_count_solvable / solvable_count if solvable_count > 0 else 0.0
+        ),
+        "n_solvable": solvable_count,
         "avg_coverage": float(np.mean(coverages)),
         "std_coverage": float(np.std(coverages)),
         "avg_steps": float(np.mean(steps_list)),
@@ -142,13 +186,17 @@ def evaluate_scripted(
 
     env = gym.make(env_id, size=eval_size, obs_quantity=obstacles, max_steps=max_steps)
 
-    rows: list[tuple[int, float, int, bool]] = []
+    rows: list[tuple[int, float, int, bool, bool]] = []
     full_coverage_count = 0
+    solvable_count = 0
+    full_coverage_count_solvable = 0
     coverages: list[float] = []
     steps_list: list[int] = []
 
     for ep in range(n_episodes):
         obs, info = env.reset(seed=seed * 1000 + ep)
+        reachable = count_reachable_cells(env.unwrapped)
+        solvable = reachable >= env.unwrapped.total_free_cells
         agent.reset()
         terminated = truncated = False
         steps = 0
@@ -161,11 +209,15 @@ def evaluate_scripted(
             steps += 1
 
         coverage = info["coverage"]
-        rows.append((ep, coverage, steps, terminated))
+        rows.append((ep, coverage, steps, terminated, solvable))
         coverages.append(coverage)
         steps_list.append(steps)
         if terminated and not truncated:
             full_coverage_count += 1
+            if solvable:
+                full_coverage_count_solvable += 1
+        if solvable:
+            solvable_count += 1
 
     env.close()
 
@@ -176,7 +228,7 @@ def evaluate_scripted(
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["episode", "coverage", "steps", "terminated"])
+        w.writerow(["episode", "coverage", "steps", "terminated", "solvable"])
         w.writerows(rows)
 
     return {
@@ -184,6 +236,10 @@ def evaluate_scripted(
         "seed": seed,
         "eval_size": eval_size,
         "full_coverage_rate": full_coverage_count / n_episodes,
+        "full_coverage_rate_solvable": (
+            full_coverage_count_solvable / solvable_count if solvable_count > 0 else 0.0
+        ),
+        "n_solvable": solvable_count,
         "avg_coverage": float(np.mean(coverages)),
         "std_coverage": float(np.std(coverages)),
         "avg_steps": float(np.mean(steps_list)),

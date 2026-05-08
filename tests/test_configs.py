@@ -47,8 +47,20 @@ def test_config_names_complete():
         "curriculum_enriched",
         "curriculum_recurrent",
         "curriculum_recurrent_v2",
+        "mapcnn_bc_pbrs",
+        "maskable_v3",
+        "maskable_bc_kl",
     }
     assert set(ConfigName.__args__) == expected
+
+
+def test_mapcnn_bc_pbrs_hyperparams_use_cuda_long_horizon_and_long_rollout():
+    from broom.configs import MAPCNN_BC_PBRS_HYPERPARAMS, BC_WARMSTART_PATH, PBRS_GAMMA
+    assert MAPCNN_BC_PBRS_HYPERPARAMS["device"] == "cuda"
+    assert MAPCNN_BC_PBRS_HYPERPARAMS["gamma"] >= 0.99
+    assert MAPCNN_BC_PBRS_HYPERPARAMS["n_steps"] >= 1024
+    assert BC_WARMSTART_PATH.endswith(".zip")
+    assert 0.9 <= PBRS_GAMMA <= 1.0
 
 
 def test_grid_size_args():
@@ -95,3 +107,53 @@ def test_v2_uses_full_n_envs_unlike_v1():
     assert get_phase_n_envs("curriculum_recurrent_v2", 5) == 4
     assert get_phase_n_envs("curriculum_recurrent_v2", 10) == 4
     assert get_phase_n_envs("curriculum_recurrent_v2", 20) == 2
+
+
+def test_maskable_v3_hyperparams_use_cuda_long_horizon_and_entropy_schedule():
+    from broom.configs import MASKABLE_V3_HYPERPARAMS, _maskable_v3_entropy_schedule
+
+    assert MASKABLE_V3_HYPERPARAMS["device"] == "cuda"
+    assert MASKABLE_V3_HYPERPARAMS["gamma"] >= 0.99
+    assert MASKABLE_V3_HYPERPARAMS["n_steps"] >= 1024
+    pkw = MASKABLE_V3_HYPERPARAMS["policy_kwargs"]
+    assert pkw["net_arch"] == [256, 256]
+
+    # Schedule decays from ~0.02 at start to ~0.001 at end
+    assert _maskable_v3_entropy_schedule(1.0) == 0.02
+    assert _maskable_v3_entropy_schedule(0.0) == 0.001
+    # Monotone decreasing
+    mid = _maskable_v3_entropy_schedule(0.5)
+    assert 0.001 < mid < 0.02
+
+
+def test_maskable_bc_kl_hyperparams_use_smaller_lr_and_kl_constants():
+    from broom.configs import (
+        BC_V3_WARMSTART_PATH,
+        KL_LAMBDA_DECAY_TIMESTEPS,
+        KL_LAMBDA_FINAL,
+        KL_LAMBDA_INITIAL,
+        MASKABLE_BC_KL_HYPERPARAMS,
+    )
+
+    assert MASKABLE_BC_KL_HYPERPARAMS["device"] == "cuda"
+    assert MASKABLE_BC_KL_HYPERPARAMS["gamma"] >= 0.99
+    # Smaller LR than maskable_v3 since we're fine-tuning a BC warm-started policy
+    assert MASKABLE_BC_KL_HYPERPARAMS["learning_rate"] < 3e-4
+    assert MASKABLE_BC_KL_HYPERPARAMS["learning_rate"] >= 1e-5
+    assert BC_V3_WARMSTART_PATH.endswith(".zip")
+    # KL anchor schedule sane values
+    assert 0.5 <= KL_LAMBDA_INITIAL <= 1.5
+    assert 0.0 <= KL_LAMBDA_FINAL <= 0.2
+    assert KL_LAMBDA_DECAY_TIMESTEPS >= 1_000_000
+
+
+def test_kl_lambda_schedule_decays_linearly():
+    from broom.maskable_bc_kl import make_kl_lambda_schedule
+
+    schedule = make_kl_lambda_schedule(initial=1.0, final=0.05, decay_over_timesteps=1_000_000)
+    assert schedule(0) == 1.0
+    assert schedule(1_000_000) == 0.05
+    # Half-way: linear interp = 0.525
+    assert abs(schedule(500_000) - 0.525) < 0.01
+    # Beyond schedule: clamped at final
+    assert schedule(2_000_000) == 0.05

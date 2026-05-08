@@ -75,17 +75,65 @@ RL_CONFIGS = (
     "curriculum_enriched",
     "curriculum_recurrent",
     "curriculum_recurrent_v2",
+    "mapcnn_bc_pbrs",
+    "maskable_v3",
+    "maskable_bc_kl",
 )
 SCRIPTED_ALGOS = ("frontier", "boustrophedon")
+
+
+def _load_solvability_cache() -> dict:
+    """Loads the (eval_size, seed, ep) -> solvable bool cache, if present.
+
+    Generated offline by `python -m broom.build_solvability_cache`. Allows the
+    "filtered" full coverage rate (over solvable maps only) to be computed
+    even for inference CSVs that were written before solvability tracking.
+    """
+    import json
+    cache_path = _results_dir() / "solvability_cache.json"
+    if not cache_path.exists():
+        return {}
+    return json.loads(cache_path.read_text())
+
+
+def _filtered_full_rate(df: pd.DataFrame, eval_size: int, seed: int, cache: dict) -> float | None:
+    """Full coverage rate restricted to solvable maps (where 100% is achievable).
+
+    If the CSV already has a `solvable` column (post-Epic 9 inference output),
+    use it directly. Otherwise look up `(eval_size, seed, ep)` in the cache.
+    Returns None if no solvable maps were sampled (shouldn't happen with our
+    seed choices, but kept for safety).
+    """
+    terminated = df["terminated"].astype(str).str.lower() == "true"
+    if "solvable" in df.columns:
+        solvable = df["solvable"].astype(str).str.lower() == "true"
+    else:
+        solvable_list = []
+        for ep in df["episode"]:
+            key = f"{eval_size}_{seed}_{int(ep)}"
+            solvable_list.append(cache.get(key, True))
+        solvable = pd.Series(solvable_list, index=df.index)
+    n_solv = int(solvable.sum())
+    if n_solv == 0:
+        return None
+    return float((terminated & solvable).sum()) / n_solv
+
+
+def _seed_from_filename(path: Path) -> int:
+    import re
+    m = re.search(r"seed(\d+)", path.name)
+    return int(m.group(1)) if m else -1
 
 
 def _rl_summary() -> pd.DataFrame:
     """For each RL config, returns the row of the inference matrix where the
     model was trained on the same grid as the eval (the "native" cell), since
     that's the reading the assignment cares about for the success criterion.
-    Computes mean and std across the 3 seeds.
+    Computes mean and std across the 3 seeds. Both raw (over all maps) and
+    filtered (over solvable maps only) full coverage rates are reported.
     """
     inf_dir = _results_dir() / "inference"
+    cache = _load_solvability_cache()
     rows = []
     for cfg in RL_CONFIGS:
         for size in GRID_SIZES:
@@ -94,17 +142,23 @@ def _rl_summary() -> pd.DataFrame:
             if not files:
                 continue
             full_rates = []
+            full_rates_solvable = []
             avg_covs = []
             for f in files:
                 df = pd.read_csv(f)
                 full_rates.append((df["terminated"].astype(str).str.lower() == "true").mean())
                 avg_covs.append(df["coverage"].mean())
+                fr_solv = _filtered_full_rate(df, size, _seed_from_filename(f), cache)
+                if fr_solv is not None:
+                    full_rates_solvable.append(fr_solv)
             rows.append({
                 "config": cfg,
                 "kind": "RL",
                 "eval_size": size,
                 "full_mean": float(np.mean(full_rates)),
                 "full_std": float(np.std(full_rates)),
+                "full_solvable_mean": float(np.mean(full_rates_solvable)) if full_rates_solvable else float("nan"),
+                "full_solvable_std": float(np.std(full_rates_solvable)) if full_rates_solvable else float("nan"),
                 "avg_mean": float(np.mean(avg_covs)),
                 "avg_std": float(np.std(avg_covs)),
             })
@@ -113,6 +167,7 @@ def _rl_summary() -> pd.DataFrame:
 
 def _scripted_summary() -> pd.DataFrame:
     inf_dir = _results_dir() / "inference"
+    cache = _load_solvability_cache()
     rows = []
     for algo in SCRIPTED_ALGOS:
         for size in GRID_SIZES:
@@ -121,17 +176,23 @@ def _scripted_summary() -> pd.DataFrame:
             if not files:
                 continue
             full_rates = []
+            full_rates_solvable = []
             avg_covs = []
             for f in files:
                 df = pd.read_csv(f)
                 full_rates.append((df["terminated"].astype(str).str.lower() == "true").mean())
                 avg_covs.append(df["coverage"].mean())
+                fr_solv = _filtered_full_rate(df, size, _seed_from_filename(f), cache)
+                if fr_solv is not None:
+                    full_rates_solvable.append(fr_solv)
             rows.append({
                 "config": algo,
                 "kind": "scripted",
                 "eval_size": size,
                 "full_mean": float(np.mean(full_rates)),
                 "full_std": float(np.std(full_rates)),
+                "full_solvable_mean": float(np.mean(full_rates_solvable)) if full_rates_solvable else float("nan"),
+                "full_solvable_std": float(np.std(full_rates_solvable)) if full_rates_solvable else float("nan"),
                 "avg_mean": float(np.mean(avg_covs)),
                 "avg_std": float(np.std(avg_covs)),
             })

@@ -1,0 +1,10 @@
+Wrapping the env with a `Monitor` wrapper
+Wrapping the env in a DummyVecEnv.
+Mixture eval | model=results/models/maskable_bc_kl_seed0_10x10.zip | eval_size=20
+p_model | seed | full_raw | full_solv | avg_raw | avg_solv
+-----------------------------------------------------------------
+   0.00 |    0 |    78.0% |    100.0% |   99.9% |   100.0%
+   0.10 |    0 |    77.0% |     98.7% |   99.9% |   100.0%
+   0.20 |    0 |    75.0% |     96.2% |   99.9% |   100.0%
+   0.50 |    0 |    70.0% |     89.7% |   99.8% |    99.9%
+   1.00 |    0 |    35.0% |     44.9% |   98.9% |    99.0%
