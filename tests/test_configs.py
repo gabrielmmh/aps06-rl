@@ -191,3 +191,16 @@ def test_max_steps_override_for_frontier_pbrs_on_20x20():
     # frontier_pbrs unchanged on smaller grids
     assert get_max_steps("maskable_frontier_pbrs", 5) == 200
     assert get_max_steps("maskable_frontier_pbrs", 10) == 500
+
+
+def test_timesteps_override_for_frontier_pbrs_on_20x20():
+    from broom.configs import get_timesteps
+
+    # Other configs unchanged
+    assert get_timesteps("baseline", 20) == 2_000_000
+    assert get_timesteps("maskable_bc_kl", 20) == 2_000_000
+    # frontier_pbrs gets 4M on 20x20 (closing-cell learning needs more experience)
+    assert get_timesteps("maskable_frontier_pbrs", 20) == 4_000_000
+    # smaller grids unchanged
+    assert get_timesteps("maskable_frontier_pbrs", 5) == 300_000
+    assert get_timesteps("maskable_frontier_pbrs", 10) == 800_000

@@ -41,6 +41,7 @@ from broom.configs import (
     _maskable_v3_entropy_schedule,
     get_max_steps,
     get_phase_n_envs,
+    get_timesteps,
 )
 from stable_baselines3.common.callbacks import CallbackList
 from broom.wrappers import PBRSCoverageWrapper
@@ -263,7 +264,7 @@ def train_one(
     n_envs = get_phase_n_envs(config_name, size)
     obstacles = PHASE_OBSTACLES[size]
     max_steps = get_max_steps(config_name, size)
-    timesteps = total_timesteps if total_timesteps is not None else PHASE_TIMESTEPS[size]
+    timesteps = total_timesteps if total_timesteps is not None else get_timesteps(config_name, size)
     pbrs_frontier_gamma = MASKABLE_FRONTIER_PBRS_HYPERPARAMS["gamma"]
 
     vec_env = _make_vec_env(

@@ -225,6 +225,23 @@ def get_max_steps(config_name: str, size: int) -> int:
     return CONFIG_MAX_STEPS_OVERRIDE.get((config_name, size), PHASE_MAX_STEPS[size])
 
 
+# Per-config timesteps override (only set when different from PHASE_TIMESTEPS).
+# maskable_frontier_pbrs gets 4M on 20x20 (vs 2M default) since the closing-cell
+# learning is the hardest part and benefits from more experience.
+CONFIG_TIMESTEPS_OVERRIDE: dict[tuple[str, int], int] = {
+    ("maskable_frontier_pbrs", 20): 4_000_000,
+}
+
+
+def get_timesteps(config_name: str, size: int) -> int:
+    """Returns the training timesteps for a given (config, size) pair.
+
+    Most configs use PHASE_TIMESTEPS[size]; long-horizon configs override on
+    specific sizes via CONFIG_TIMESTEPS_OVERRIDE.
+    """
+    return CONFIG_TIMESTEPS_OVERRIDE.get((config_name, size), PHASE_TIMESTEPS[size])
+
+
 # Curriculum chain: each entry is (size, init_from_size or None)
 CURRICULUM_CHAIN: list[tuple[int, int | None]] = [
     (5, None),    # train from scratch
