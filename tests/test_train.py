@@ -8,7 +8,7 @@ from broom.train import train_one
 
 @pytest.fixture
 def tmp_results(tmp_path, monkeypatch):
-    monkeypatch.setenv("APS07_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("APS08_RESULTS_DIR", str(tmp_path))
     return tmp_path
 
 

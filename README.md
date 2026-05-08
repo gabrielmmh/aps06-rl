@@ -1,6 +1,6 @@
-# APS07 — Generalização do Agente em Coverage Path Planning
+# APS08 — Generalização do Agente em Coverage Path Planning
 
-Fork técnico de [`fbarth/gym_custom_env`](https://github.com/fbarth/gym_custom_env) feito para a Atividade Prática Supervisionada 07 da disciplina de Reinforcement Learning do Insper. Enunciado em https://insper.github.io/rl/classes/23_custom_env_agent/.
+Fork técnico de [`fbarth/gym_custom_env`](https://github.com/fbarth/gym_custom_env) feito para a Atividade Prática Supervisionada 08 da disciplina de Reinforcement Learning do Insper. Enunciado em https://insper.github.io/rl/classes/23_custom_env_agent/.
 
 A APS pede uma estratégia que faça um agente PPO treinado no problema de Coverage Path Planning (CPP) generalizar entre tamanhos de grid (5x5, 10x10 e, como bônus, 20x20) preservando a observabilidade parcial. O baseline do enunciado treina em 5x5 e degrada quando avaliado em grids maiores. Investiguei nove configurações de RL (mais dois baselines clássicos não-learning para contexto) para atacar essa degradação. Antes da análise dos resultados, vale a leitura da seção [A métrica corrigida](#a-métrica-corrigida-mapas-insolucionáveis), que documenta a descoberta de que ~6/14/23% dos mapas em 5x5/10x10/20x20 são fisicamente impossíveis de cobrir 100% por construção, e isso muda a leitura honesta dos números.
 
